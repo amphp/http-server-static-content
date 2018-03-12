@@ -5,7 +5,7 @@ namespace Amp\Http\Server\StaticContent\Test;
 use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Options;
 use Amp\Http\Server\Request;
-use Amp\Http\Server\StaticContent\Root;
+use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Server\Server;
 use Amp\Http\Status;
 use Amp\Loop;
@@ -13,7 +13,7 @@ use Amp\Promise;
 use League\Uri;
 use PHPUnit\Framework\TestCase;
 
-class RootTest extends TestCase {
+class DocumentRootTest extends TestCase {
     /** @var \Amp\Loop\Driver */
     private static $loop;
 
@@ -77,7 +77,7 @@ class RootTest extends TestCase {
      */
     public function testConstructorThrowsOnInvalidDocRoot($badPath) {
         $filesystem = $this->createMock('Amp\File\Driver');
-        $root = new Root($badPath, $filesystem);
+        $root = new DocumentRoot($badPath, $filesystem);
     }
 
     public function provideBadDocRoots() {
@@ -88,7 +88,7 @@ class RootTest extends TestCase {
     }
 
     public function testBasicFileResponse() {
-        $root = new Root(self::fixturePath());
+        $root = new DocumentRoot(self::fixturePath());
 
         $server = $this->createMock(Server::class);
         $server->method('getOptions')
@@ -129,7 +129,7 @@ class RootTest extends TestCase {
      * @depends testBasicFileResponse
      * @dataProvider provideRelativePathsAboveRoot
      */
-    public function testPathsOnRelativePathAboveRoot(string $relativePath, Root $root) {
+    public function testPathsOnRelativePathAboveRoot(string $relativePath, DocumentRoot $root) {
         $request = $this->createMock(Request::class);
         $request->expects($this->once())
             ->method("getUri")
@@ -156,7 +156,7 @@ class RootTest extends TestCase {
      * @depends testBasicFileResponse
      * @dataProvider provideUnavailablePathsAboveRoot
      */
-    public function testUnavailablePathsOnRelativePathAboveRoot(string $relativePath, Root $root) {
+    public function testUnavailablePathsOnRelativePathAboveRoot(string $relativePath, DocumentRoot $root) {
         $request = $this->createMock(Request::class);
         $request->expects($this->once())
             ->method("getUri")
@@ -181,7 +181,7 @@ class RootTest extends TestCase {
     /**
      * @depends testBasicFileResponse
      */
-    public function testCachedResponse(Root $root) {
+    public function testCachedResponse(DocumentRoot $root) {
         $request = $this->createMock(Request::class);
         $request->expects($this->once())
             ->method("getUri")
@@ -202,7 +202,7 @@ class RootTest extends TestCase {
     /**
      * @depends testBasicFileResponse
      */
-    public function testDebugModeIgnoresCacheIfCacheControlHeaderIndicatesToDoSo(Root $root) {
+    public function testDebugModeIgnoresCacheIfCacheControlHeaderIndicatesToDoSo(DocumentRoot $root) {
         $server = $this->createMock(Server::class);
         $server->method('getOptions')
             ->willReturn((new Options)->withDebugMode());
@@ -234,7 +234,7 @@ class RootTest extends TestCase {
     /**
      * @depends testDebugModeIgnoresCacheIfCacheControlHeaderIndicatesToDoSo
      */
-    public function testDebugModeIgnoresCacheIfPragmaHeaderIndicatesToDoSo(Root $root) {
+    public function testDebugModeIgnoresCacheIfPragmaHeaderIndicatesToDoSo(DocumentRoot $root) {
         $request = $this->createMock(Request::class);
         $request->expects($this->once())
             ->method("getUri")
@@ -258,7 +258,7 @@ class RootTest extends TestCase {
     }
 
     public function testOptionsHeader() {
-        $root = new Root(self::fixturePath());
+        $root = new DocumentRoot(self::fixturePath());
         $request = $this->createMock(Request::class);
         $request->expects($this->once())
             ->method("getUri")
@@ -276,7 +276,7 @@ class RootTest extends TestCase {
     }
 
     public function testPreconditionFailure() {
-        $root = new Root(self::fixturePath());
+        $root = new DocumentRoot(self::fixturePath());
 
         $server = $this->createMock(Server::class);
         $server->method('getOptions')
@@ -309,7 +309,7 @@ class RootTest extends TestCase {
     }
 
     public function testPreconditionNotModified() {
-        $root = new Root(self::fixturePath());
+        $root = new DocumentRoot(self::fixturePath());
         $root->setOption("useEtagInode", false);
         $diskPath = realpath(self::fixturePath())."/index.htm";
         $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
@@ -339,7 +339,7 @@ class RootTest extends TestCase {
     }
 
     public function testPreconditionRangeFail() {
-        $root = new Root(self::fixturePath());
+        $root = new DocumentRoot(self::fixturePath());
         $root->setOption("useEtagInode", false);
         $diskPath = realpath(self::fixturePath())."/index.htm";
         $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
@@ -367,7 +367,7 @@ class RootTest extends TestCase {
     }
 
     public function testBadRange() {
-        $root = new Root(self::fixturePath());
+        $root = new DocumentRoot(self::fixturePath());
 
         $server = $this->createMock(Server::class);
         $server->method('getOptions')
@@ -410,7 +410,7 @@ class RootTest extends TestCase {
      */
     public function testValidRange(string $range, callable $validator) {
         Loop::run(function () use ($range, $validator) {
-            $root = new Root(self::fixturePath());
+            $root = new DocumentRoot(self::fixturePath());
             $root->setOption("useEtagInode", false);
             $request = $this->createMock(Request::class);
             $request->expects($this->once())
@@ -475,7 +475,7 @@ PART;
     /**
      * @depends testBasicFileResponse
      */
-    public function testMimetypeParsing(Root $root) {
+    public function testMimetypeParsing(DocumentRoot $root) {
         $request = $this->createMock(Request::class);
         $request->expects($this->once())
             ->method("getUri")
