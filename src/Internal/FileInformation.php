@@ -1,6 +1,6 @@
 <?php
 
-namespace Amp\Http\Server\File\Internal;
+namespace Amp\Http\Server\StaticContent\Internal;
 
 use Amp\Struct;
 

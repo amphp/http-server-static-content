@@ -1,11 +1,11 @@
 <?php
 
-namespace Amp\Http\Server\File\Test;
+namespace Amp\Http\Server\StaticContent\Test;
 
 use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Options;
 use Amp\Http\Server\Request;
-use Amp\Http\Server\File\Root;
+use Amp\Http\Server\StaticContent\Root;
 use Amp\Http\Server\Server;
 use Amp\Http\Status;
 use Amp\Loop;

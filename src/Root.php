@@ -1,6 +1,6 @@
 <?php
 
-namespace Amp\Http\Server\File;
+namespace Amp\Http\Server\StaticContent;
 
 use Amp\ByteStream\InMemoryStream;
 use Amp\ByteStream\InputStream;
