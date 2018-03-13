@@ -354,10 +354,10 @@ class DocumentRoot implements Responder, ServerObserver {
                 break;
 
             case "OPTIONS":
-                return new Response(null, [
+                return new Response(Status::NO_CONTENT, [
                     "Allow" => "GET, HEAD, OPTIONS",
                     "Accept-Ranges" => "bytes",
-                ], Status::NO_CONTENT);
+                ]);
 
             default:
                 /** @var \Amp\Http\Server\Response $response */
@@ -371,7 +371,7 @@ class DocumentRoot implements Responder, ServerObserver {
         switch ($precondition) {
             case self::PRECONDITION_NOT_MODIFIED:
                 $lastModifiedHttpDate = \gmdate('D, d M Y H:i:s', $fileInfo->mtime) . " GMT";
-                $response = new Response(null, ["Last-Modified" => $lastModifiedHttpDate], Status::NOT_MODIFIED);
+                $response = new Response(Status::NOT_MODIFIED, ["Last-Modified" => $lastModifiedHttpDate]);
                 if ($fileInfo->etag) {
                     $response->setHeader("Etag", $fileInfo->etag);
                 }
@@ -452,12 +452,12 @@ class DocumentRoot implements Responder, ServerObserver {
         $headers["Content-Type"] = $this->selectMimeTypeFromPath($fileInfo->path);
 
         if (isset($fileInfo->buffer)) {
-            return new Response(new InMemoryStream($fileInfo->buffer), $headers);
+            return new Response(Status::OK, $headers, new InMemoryStream($fileInfo->buffer));
         }
 
         $handle = yield $this->filesystem->open($fileInfo->path, "r");
 
-        $response = new Response($handle, $headers);
+        $response = new Response(Status::OK, $headers, $handle);
         $response->onDispose([$handle, "close"]);
         return $response;
     }
@@ -586,7 +586,7 @@ class DocumentRoot implements Responder, ServerObserver {
             $stream = $this->sendMultiRange($handle, $fileInfo, $range);
         }
 
-        $response = new Response($stream, $headers, Status::PARTIAL_CONTENT);
+        $response = new Response(Status::PARTIAL_CONTENT, $headers, $stream);
         $response->onDispose([$handle, "close"]);
         return $response;
     }
@@ -838,7 +838,7 @@ class DocumentRoot implements Responder, ServerObserver {
         $this->bufferedFileCount = 0;
         $this->running = false;
 
-        if ($this->fallback !== null && $this->fallback instanceof ServerObserver) {
+        if ($this->fallback instanceof ServerObserver) {
             return $this->fallback->onStop($server);
         }
 
