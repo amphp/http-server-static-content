@@ -5,8 +5,8 @@ namespace Amp\Http\Server\StaticContent\Test;
 use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Options;
 use Amp\Http\Server\Request;
-use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Server\Server;
+use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Status;
 use Amp\Loop;
 use Amp\Promise;
@@ -112,7 +112,7 @@ class DocumentRootTest extends TestCase {
                 ->method("getMethod")
                 ->will($this->returnValue("GET"));
 
-            $promise = $root->respond($request);
+            $promise = $root->handleRequest($request);
             /** @var \Amp\Http\Server\Response $response */
             $response = Promise\wait($promise);
 
@@ -138,7 +138,7 @@ class DocumentRootTest extends TestCase {
             ->method("getMethod")
             ->will($this->returnValue("GET"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
         $stream = $response->getBody();
@@ -165,7 +165,7 @@ class DocumentRootTest extends TestCase {
             ->method("getMethod")
             ->will($this->returnValue("GET"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
         $this->assertSame(Status::NOT_FOUND, $response->getStatus());
@@ -190,7 +190,7 @@ class DocumentRootTest extends TestCase {
             ->method("getMethod")
             ->will($this->returnValue("GET"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
 
@@ -220,7 +220,7 @@ class DocumentRootTest extends TestCase {
             ->method("getMethod")
             ->will($this->returnValue("GET"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
 
@@ -246,7 +246,7 @@ class DocumentRootTest extends TestCase {
             ->method("getMethod")
             ->will($this->returnValue("GET"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
 
@@ -267,7 +267,7 @@ class DocumentRootTest extends TestCase {
             ->method("getMethod")
             ->will($this->returnValue("OPTIONS"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
 
@@ -301,7 +301,7 @@ class DocumentRootTest extends TestCase {
             ->method("getMethod")
             ->will($this->returnValue("GET"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
 
@@ -329,7 +329,7 @@ class DocumentRootTest extends TestCase {
             ->method("getMethod")
             ->will($this->returnValue("GET"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
 
@@ -358,7 +358,7 @@ class DocumentRootTest extends TestCase {
             ->method("getMethod")
             ->will($this->returnValue("GET"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
 
@@ -397,7 +397,7 @@ class DocumentRootTest extends TestCase {
             ->method("getMethod")
             ->will($this->returnValue("GET"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
 
@@ -429,7 +429,7 @@ class DocumentRootTest extends TestCase {
                 ->will($this->returnValue("GET"));
 
             /** @var \Amp\Http\Server\Response $response */
-            $response = yield $root->respond($request);
+            $response = yield $root->handleRequest($request);
 
             $this->assertSame(Status::PARTIAL_CONTENT, $response->getStatus());
 
@@ -484,7 +484,7 @@ PART;
             ->method("getMethod")
             ->will($this->returnValue("GET"));
 
-        $promise = $root->respond($request);
+        $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
         $response = Promise\wait($promise);
 

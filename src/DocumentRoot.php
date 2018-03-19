@@ -9,7 +9,7 @@ use Amp\CallableMaker;
 use Amp\Coroutine;
 use Amp\File;
 use Amp\Http\Server\Request;
-use Amp\Http\Server\Responder;
+use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Response;
 use Amp\Http\Server\Server;
 use Amp\Http\Server\ServerObserver;
@@ -18,7 +18,7 @@ use Amp\Producer;
 use Amp\Promise;
 use Amp\Success;
 
-class DocumentRoot implements Responder, ServerObserver {
+class DocumentRoot implements RequestHandler, ServerObserver {
     use CallableMaker;
 
     const READ_CHUNK_SIZE = 8192;
@@ -37,7 +37,7 @@ class DocumentRoot implements Responder, ServerObserver {
     /** @var \Amp\Http\Server\ErrorHandler */
     private $errorHandler;
 
-    /** @var \Amp\Http\Server\Responder|null */
+    /** @var \Amp\Http\Server\RequestHandler|null */
     private $fallback;
 
     private $root;
@@ -109,25 +109,25 @@ class DocumentRoot implements Responder, ServerObserver {
     }
 
     /**
-     * Specifies an instance of Responder that is used if no file exists for the requested path.
+     * Specifies an instance of RequestHandler that is used if no file exists for the requested path.
      * If no fallback is given, a 404 response is returned from respond() when the file does not exist.
      *
-     * @param Responder $responder
+     * @param RequestHandler $RequestHandler
      *
      * @throws \Error If the server has started.
      */
-    public function setFallback(Responder $responder) {
+    public function setFallback(RequestHandler $requestHandler) {
         if ($this->running) {
-            throw new \Error("Cannot add fallback responder after the server has started");
+            throw new \Error("Cannot add fallback request handler after the server has started");
         }
 
-        $this->fallback = $responder;
+        $this->fallback = $requestHandler;
     }
 
     /**
      * Respond to HTTP requests for filesystem resources.
      */
-    public function respond(Request $request): Promise {
+    public function handleRequest(Request $request): Promise {
         $uri = $request->getUri()->getPath();
         $path = ($qPos = \strpos($uri, "?")) ? \substr($uri, 0, $qPos) : $uri;
         // IMPORTANT! Do NOT remove this. If this is left in, we'll be able to use /path\..\../outsideDocRoot defeating
