@@ -18,7 +18,7 @@ use Amp\Producer;
 use Amp\Promise;
 use Amp\Success;
 
-class DocumentRoot implements RequestHandler, ServerObserver {
+final class DocumentRoot implements RequestHandler, ServerObserver {
     use CallableMaker;
 
     const READ_CHUNK_SIZE = 8192;
