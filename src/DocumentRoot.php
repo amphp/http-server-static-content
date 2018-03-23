@@ -531,104 +531,39 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         }
     }
 
-    /**
-     * Set a document root option.
-     *
-     * @param string $option The option key (case-insensitve)
-     * @param mixed  $value The option value to assign
-     *
-     * @throws \Error On unrecognized option key
-     */
-    public function setOption(string $option, $value) {
-        switch ($option) {
-            case "indexes":
-                $this->setIndexes($value);
-                break;
-            case "useEtagInode":
-                $this->setUseEtagInode($value);
-                break;
-            case "expiresPeriod":
-                $this->setExpiresPeriod($value);
-                break;
-            case "mimeFile":
-                $this->loadMimeFileTypes($value);
-                break;
-            case "mimeTypes":
-                $this->setMimeTypes($value);
-                break;
-            case "defaultMimeType":
-                $this->setDefaultMimeType($value);
-                break;
-            case "defaultTextCharset":
-                $this->setDefaultTextCharset($value);
-                break;
-            case "useAggressiveCacheHeaders":
-                $this->setUseAggressiveCacheHeaders($value);
-                break;
-            case "aggressiveCacheMultiplier":
-                $this->setAggressiveCacheMultiplier($value);
-                break;
-            case "cacheEntryTtl":
-                $this->setCacheEntryTtl($value);
-                break;
-            case "cacheEntryMaxCount":
-                $this->setCacheEntryMaxCount($value);
-                break;
-            case "bufferedFileMaxCount":
-                $this->setBufferedFileMaxCount($value);
-                break;
-            case "bufferedFileMaxSize":
-                $this->setBufferedFileMaxSize($value);
-                break;
-            default:
-                throw new \Error(
-                    "Unknown root option: {$option}"
-                );
-        }
-    }
-
-    private function setIndexes($indexes) {
-        if (\is_string($indexes)) {
-            $indexes = array_map("trim", explode(" ", $indexes));
-        } elseif (!\is_array($indexes)) {
-            throw new \Error(sprintf(
-                "Array or string required for root index names: %s provided",
-                \gettype($indexes)
-            ));
-        } else {
-            foreach ($indexes as $index) {
-                if (!\is_string($index)) {
-                    throw new \Error(sprintf(
-                        "Array of string index filenames required: %s provided",
-                        \gettype($index)
-                    ));
-                }
+    public function setIndexes(array $indexes) {
+        foreach ($indexes as $index) {
+            if (!\is_string($index)) {
+                throw new \TypeError(sprintf(
+                    "Array of string index filenames required: %s provided",
+                    \gettype($index)
+                ));
             }
         }
 
         $this->indexes = \array_filter($indexes);
     }
 
-    private function setUseEtagInode(bool $useInode) {
+    public function setUseEtagInode(bool $useInode) {
         $this->useEtagInode = $useInode;
     }
 
-    private function setExpiresPeriod(int $seconds) {
+    public function setExpiresPeriod(int $seconds) {
         $this->expiresPeriod = ($seconds < 0) ? 0 : $seconds;
     }
 
-    private function loadMimeFileTypes(string $mimeFile) {
+    public function loadMimeFileTypes(string $mimeFile) {
         $mimeFile = str_replace('\\', '/', $mimeFile);
         $mimeStr = @file_get_contents($mimeFile);
         if ($mimeStr === false) {
-            throw new \RuntimeException(
+            throw new \Exception(
                 "Failed loading mime associations from file {$mimeFile}"
             );
         }
 
         /** @var array[] $matches */
         if (!preg_match_all('#\s*([a-z0-9]+)\s+([a-z0-9\-]+/[a-z0-9\-]+(?:\+[a-z0-9\-]+)?)#i', $mimeStr, $matches)) {
-            throw new \RuntimeException(
+            throw new \Exception(
                 "No mime associations found in file: {$mimeFile}"
             );
         }
@@ -642,14 +577,14 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         $this->mimeFileTypes = $mimeTypes;
     }
 
-    private function setMimeTypes(array $mimeTypes) {
+    public function setMimeTypes(array $mimeTypes) {
         foreach ($mimeTypes as $ext => $type) {
             $ext = strtolower(ltrim($ext, '.'));
             $this->mimeTypes[$ext] = $type;
         }
     }
 
-    private function setDefaultMimeType(string $mimeType) {
+    public function setDefaultMimeType(string $mimeType) {
         if (empty($mimeType)) {
             throw new \Error(
                 'Default mime type expects a non-empty string'
@@ -659,7 +594,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         $this->defaultMimeType = $mimeType;
     }
 
-    private function setDefaultTextCharset(string $charset) {
+    public function setDefaultTextCharset(string $charset) {
         if (empty($charset)) {
             throw new \Error(
                 'Default charset expects a non-empty string'
@@ -669,11 +604,11 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         $this->defaultCharset = $charset;
     }
 
-    private function setUseAggressiveCacheHeaders(bool $bool) {
+    public function setUseAggressiveCacheHeaders(bool $bool) {
         $this->useAggressiveCacheHeaders = $bool;
     }
 
-    private function setAggressiveCacheMultiplier(float $multiplier) {
+    public function setAggressiveCacheMultiplier(float $multiplier) {
         if ($multiplier > 0.00 && $multiplier < 1.0) {
             $this->aggressiveCacheMultiplier = $multiplier;
         } else {
@@ -683,28 +618,28 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         }
     }
 
-    private function setCacheEntryTtl(int $seconds) {
+    public function setCacheEntryTtl(int $seconds) {
         if ($seconds < 1) {
             $seconds = 10;
         }
         $this->cacheEntryTtl = $seconds;
     }
 
-    private function setCacheEntryMaxCount(int $count) {
+    public function setCacheEntryMaxCount(int $count) {
         if ($count < 1) {
             $count = 0;
         }
         $this->cacheEntryMaxCount = $count;
     }
 
-    private function setBufferedFileMaxCount(int $count) {
+    public function setBufferedFileMaxCount(int $count) {
         if ($count < 1) {
             $count = 0;
         }
         $this->bufferedFileMaxCount = $count;
     }
 
-    private function setBufferedFileMaxSize(int $bytes) {
+    public function setBufferedFileMaxSize(int $bytes) {
         if ($bytes < 1) {
             $bytes = 524288;
         }

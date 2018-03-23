@@ -245,9 +245,9 @@ class DocumentRootTest extends TestCase {
 
         $server = $this->createServer((new Options)->withDebugMode());
 
+        $root->setUseEtagInode(false);
         $root->onStart($server);
 
-        $root->setOption("useEtagInode", false);
         $diskPath = \realpath(self::fixturePath())."/index.htm";
 
         $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
@@ -263,7 +263,7 @@ class DocumentRootTest extends TestCase {
 
     public function testPreconditionNotModified() {
         $root = new DocumentRoot(self::fixturePath());
-        $root->setOption("useEtagInode", false);
+        $root->setUseEtagInode(false);
         $diskPath = realpath(self::fixturePath())."/index.htm";
         $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
 
@@ -283,7 +283,7 @@ class DocumentRootTest extends TestCase {
 
     public function testPreconditionRangeFail() {
         $root = new DocumentRoot(self::fixturePath());
-        $root->setOption("useEtagInode", false);
+        $root->setUseEtagInode(false);
         $diskPath = realpath(self::fixturePath())."/index.htm";
         $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
 
@@ -304,9 +304,9 @@ class DocumentRootTest extends TestCase {
 
         $server = $this->createServer((new Options)->withDebugMode());
 
+        $root->setUseEtagInode(false);
         $root->onStart($server);
 
-        $root->setOption("useEtagInode", false);
         $diskPath = realpath(self::fixturePath())."/index.htm";
         $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
 
@@ -329,7 +329,7 @@ class DocumentRootTest extends TestCase {
     public function testValidRange(string $range, callable $validator) {
         Loop::run(function () use ($range, $validator) {
             $root = new DocumentRoot(self::fixturePath());
-            $root->setOption("useEtagInode", false);
+            $root->setUseEtagInode(false);
 
             $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
                 "if-range" => "+1 second",
