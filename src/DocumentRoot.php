@@ -112,7 +112,7 @@ class DocumentRoot implements RequestHandler, ServerObserver {
      * Specifies an instance of RequestHandler that is used if no file exists for the requested path.
      * If no fallback is given, a 404 response is returned from respond() when the file does not exist.
      *
-     * @param RequestHandler $RequestHandler
+     * @param RequestHandler $requestHandler
      *
      * @throws \Error If the server has started.
      */
@@ -342,7 +342,7 @@ class DocumentRoot implements RequestHandler, ServerObserver {
     private function respondFromFileInfo(Internal\FileInformation $fileInfo, Request $request): \Generator {
         if (!$fileInfo->exists) {
             if ($this->fallback !== null) {
-                return $this->fallback->respond($request);
+                return $this->fallback->handleRequest($request);
             }
 
             return yield $this->errorHandler->handleError(Status::NOT_FOUND, null, $request);
