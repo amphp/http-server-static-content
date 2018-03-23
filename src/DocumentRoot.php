@@ -29,7 +29,7 @@ class DocumentRoot implements RequestHandler, ServerObserver {
     const PRECONDITION_IF_RANGE_FAILED = 4;
     const PRECONDITION_OK = 5;
 
-    const DEFAULT_MIME_TYPE_FILE = __DIR__ . "/../etc/mime";
+    const DEFAULT_MIME_TYPE_FILE = __DIR__ . "/../resources/mime";
 
     /** @var bool */
     private $running = false;
