@@ -3,15 +3,19 @@
 namespace Amp\Http\Server\StaticContent\Test;
 
 use Amp\Http\Server\DefaultErrorHandler;
+use Amp\Http\Server\Driver\Client;
 use Amp\Http\Server\Options;
 use Amp\Http\Server\Request;
+use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Server;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Status;
 use Amp\Loop;
 use Amp\Promise;
+use Amp\Socket;
 use League\Uri;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface as PsrLogger;
 
 class DocumentRootTest extends TestCase {
     /** @var \Amp\Loop\Driver */
@@ -70,6 +74,19 @@ class DocumentRootTest extends TestCase {
         Loop::set(self::$loop);
     }
 
+    public function createServer(Options $options = null): Server {
+        $socket = $this->createMock(Socket\Server::class);
+
+        $server = new Server(
+            [$socket],
+            $this->createMock(RequestHandler::class),
+            $this->createMock(PsrLogger::class),
+            $options
+        );
+
+        return $server;
+    }
+
     /**
      * @dataProvider provideBadDocRoots
      * @expectedException \Error
@@ -90,12 +107,7 @@ class DocumentRootTest extends TestCase {
     public function testBasicFileResponse() {
         $root = new DocumentRoot(self::fixturePath());
 
-        $server = $this->createMock(Server::class);
-        $server->method('getOptions')
-            ->willReturn((new Options)->withDebugMode());
-
-        $server->method('getErrorHandler')
-            ->willReturn(new DefaultErrorHandler);
+        $server = $this->createServer((new Options)->withDebugMode());
 
         $root->onStart($server);
 
@@ -104,13 +116,7 @@ class DocumentRootTest extends TestCase {
             ["/index.htm", "test"],
             ["/dir/../dir//..//././index.htm", "test"],
         ] as list($path, $contents)) {
-            $request = $this->createMock(Request::class);
-            $request->expects($this->once())
-                ->method("getUri")
-                ->will($this->returnValue(Uri\Http::createFromString($path)));
-            $request->expects($this->any())
-                ->method("getMethod")
-                ->will($this->returnValue("GET"));
+            $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString($path));
 
             $promise = $root->handleRequest($request);
             /** @var \Amp\Http\Server\Response $response */
@@ -130,13 +136,7 @@ class DocumentRootTest extends TestCase {
      * @dataProvider provideRelativePathsAboveRoot
      */
     public function testPathsOnRelativePathAboveRoot(string $relativePath, DocumentRoot $root) {
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString($relativePath)));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("GET"));
+        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString($relativePath));
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -157,13 +157,7 @@ class DocumentRootTest extends TestCase {
      * @dataProvider provideUnavailablePathsAboveRoot
      */
     public function testUnavailablePathsOnRelativePathAboveRoot(string $relativePath, DocumentRoot $root) {
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString($relativePath)));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("GET"));
+        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString($relativePath));
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -182,13 +176,7 @@ class DocumentRootTest extends TestCase {
      * @depends testBasicFileResponse
      */
     public function testCachedResponse(DocumentRoot $root) {
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString("/index.htm")));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("GET"));
+        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"));
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -203,22 +191,13 @@ class DocumentRootTest extends TestCase {
      * @depends testBasicFileResponse
      */
     public function testDebugModeIgnoresCacheIfCacheControlHeaderIndicatesToDoSo(DocumentRoot $root) {
-        $server = $this->createMock(Server::class);
-        $server->method('getOptions')
-            ->willReturn((new Options)->withDebugMode());
+        $server = $this->createServer((new Options)->withDebugMode());
 
         $root->onStart($server);
 
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString("/index.htm")));
-        $request->expects($this->once())
-            ->method("getHeaderArray")
-            ->will($this->returnValue(["no-cache"]));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("GET"));
+        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+            "cache-control" => "no-cache",
+        ]);
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -235,16 +214,9 @@ class DocumentRootTest extends TestCase {
      * @depends testDebugModeIgnoresCacheIfCacheControlHeaderIndicatesToDoSo
      */
     public function testDebugModeIgnoresCacheIfPragmaHeaderIndicatesToDoSo(DocumentRoot $root) {
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString("/index.htm")));
-        $request->expects($this->exactly(2))
-            ->method("getHeaderArray")
-            ->will($this->onConsecutiveCalls([], ["no-cache"]));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("GET"));
+        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+            "cache-control" => "no-cache",
+        ]);
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -259,13 +231,7 @@ class DocumentRootTest extends TestCase {
 
     public function testOptionsHeader() {
         $root = new DocumentRoot(self::fixturePath());
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString("/")));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("OPTIONS"));
+        $request = new Request($this->createMock(Client::class), "OPTIONS", Uri\Http::createFromString("/"));
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -278,28 +244,16 @@ class DocumentRootTest extends TestCase {
     public function testPreconditionFailure() {
         $root = new DocumentRoot(self::fixturePath());
 
-        $server = $this->createMock(Server::class);
-        $server->method('getOptions')
-            ->willReturn((new Options)->withDebugMode());
-
-        $server->method('getErrorHandler')
-            ->willReturn(new DefaultErrorHandler);
+        $server = $this->createServer((new Options)->withDebugMode());
 
         $root->onStart($server);
 
         $root->setOption("useEtagInode", false);
         $diskPath = \realpath(self::fixturePath())."/index.htm";
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString("/index.htm")));
-        $request->expects($this->atLeastOnce())
-            ->method("getHeader")
-            ->with("If-Match")
-            ->will($this->returnValue("any value"));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("GET"));
+
+        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+            "if-match" => "any value",
+        ]);
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -313,21 +267,11 @@ class DocumentRootTest extends TestCase {
         $root->setOption("useEtagInode", false);
         $diskPath = realpath(self::fixturePath())."/index.htm";
         $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString("/index.htm")));
-        $request->expects($this->any())
-            ->method("getHeader")
-            ->will($this->returnCallback(function ($header) use ($etag) {
-                return [
-                "If-Match" => $etag,
-                "If-Modified-Since" => "2.1.1970",
-            ][$header] ?? "";
-            }));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("GET"));
+
+        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+            "if-match" => $etag,
+            "if-modified-since" => "2.1.1970",
+        ]);
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -343,20 +287,10 @@ class DocumentRootTest extends TestCase {
         $root->setOption("useEtagInode", false);
         $diskPath = realpath(self::fixturePath())."/index.htm";
         $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString("/index.htm")));
-        $request->expects($this->any())
-            ->method("getHeader")
-            ->will($this->returnCallback(function ($header) use ($etag) {
-                return [
-                "If-Range" => "foo",
-            ][$header] ?? "";
-            }));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("GET"));
+
+        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+            "if-range" => "foo",
+        ]);
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -369,33 +303,18 @@ class DocumentRootTest extends TestCase {
     public function testBadRange() {
         $root = new DocumentRoot(self::fixturePath());
 
-        $server = $this->createMock(Server::class);
-        $server->method('getOptions')
-            ->willReturn((new Options)->withDebugMode());
-
-        $server->method('getErrorHandler')
-            ->willReturn(new DefaultErrorHandler);
+        $server = $this->createServer((new Options)->withDebugMode());
 
         $root->onStart($server);
 
         $root->setOption("useEtagInode", false);
         $diskPath = realpath(self::fixturePath())."/index.htm";
         $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString("/index.htm")));
-        $request->expects($this->any())
-            ->method("getHeader")
-            ->will($this->returnCallback(function ($header) use ($etag) {
-                return [
-                "If-Range" => $etag,
-                "Range" => "bytes=7-10",
-            ][$header] ?? "";
-            }));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("GET"));
+
+        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+            "if-range" => $etag,
+            "range" => "bytes=7-10",
+        ]);
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -412,21 +331,11 @@ class DocumentRootTest extends TestCase {
         Loop::run(function () use ($range, $validator) {
             $root = new DocumentRoot(self::fixturePath());
             $root->setOption("useEtagInode", false);
-            $request = $this->createMock(Request::class);
-            $request->expects($this->once())
-                ->method("getUri")
-                ->will($this->returnValue(Uri\Http::createFromString("/index.htm")));
-            $request->expects($this->any())
-                ->method("getHeader")
-                ->will($this->returnCallback(function ($header) use ($range) {
-                    return [
-                        "If-Range" => "+1 second",
-                        "Range"    => "bytes=$range",
-                    ][$header] ?? "";
-                }));
-            $request->expects($this->any())
-                ->method("getMethod")
-                ->will($this->returnValue("GET"));
+
+            $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+                "if-range" => "+1 second",
+                "range" => "bytes=$range",
+            ]);
 
             /** @var \Amp\Http\Server\Response $response */
             $response = yield $root->handleRequest($request);
@@ -476,13 +385,7 @@ PART;
      * @depends testBasicFileResponse
      */
     public function testMimetypeParsing(DocumentRoot $root) {
-        $request = $this->createMock(Request::class);
-        $request->expects($this->once())
-            ->method("getUri")
-            ->will($this->returnValue(Uri\Http::createFromString("/svg.svg")));
-        $request->expects($this->any())
-            ->method("getMethod")
-            ->will($this->returnValue("GET"));
+        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/svg.svg"));
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */

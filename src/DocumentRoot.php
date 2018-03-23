@@ -345,7 +345,7 @@ class DocumentRoot implements RequestHandler, ServerObserver {
                 return $this->fallback->respond($request);
             }
 
-            return yield $this->errorHandler->handle(Status::NOT_FOUND, null, $request);
+            return yield $this->errorHandler->handleError(Status::NOT_FOUND, null, $request);
         }
 
         switch ($request->getMethod()) {
@@ -361,7 +361,7 @@ class DocumentRoot implements RequestHandler, ServerObserver {
 
             default:
                 /** @var \Amp\Http\Server\Response $response */
-                $response = yield $this->errorHandler->handle(Status::METHOD_NOT_ALLOWED, null, $request);
+                $response = yield $this->errorHandler->handleError(Status::METHOD_NOT_ALLOWED, null, $request);
                 $response->setHeader("Allow", "GET, HEAD, OPTIONS");
                 return $response;
         }
@@ -378,7 +378,7 @@ class DocumentRoot implements RequestHandler, ServerObserver {
                 return $response;
 
             case self::PRECONDITION_FAILED:
-                return yield $this->errorHandler->handle(Status::PRECONDITION_FAILED, null, $request);
+                return yield $this->errorHandler->handleError(Status::PRECONDITION_FAILED, null, $request);
 
             case self::PRECONDITION_IF_RANGE_FAILED:
                 // Return this so the resulting generator will be auto-resolved
@@ -397,7 +397,7 @@ class DocumentRoot implements RequestHandler, ServerObserver {
 
         // If we're still here this is the only remaining response we can send
         /** @var \Amp\Http\Server\Response $response */
-        $response = yield $this->errorHandler->handle(Status::RANGE_NOT_SATISFIABLE, null, $request);
+        $response = yield $this->errorHandler->handleError(Status::RANGE_NOT_SATISFIABLE, null, $request);
         $response->setHeader("Content-Range", "*/{$fileInfo->size}");
         return $response;
     }
