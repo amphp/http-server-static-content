@@ -44,7 +44,10 @@
     "autoload": {
         "psr-4": {
             "Amp\\Http\\Server\\StaticContent\\": "src"
-        }
+        },
+        "files": [
+            "src/functions.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

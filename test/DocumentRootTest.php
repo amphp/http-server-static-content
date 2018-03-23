@@ -2,7 +2,6 @@
 
 namespace Amp\Http\Server\StaticContent\Test;
 
-use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Driver\Client;
 use Amp\Http\Server\Options;
 use Amp\Http\Server\Request;
