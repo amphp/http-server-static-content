@@ -78,7 +78,11 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
             );
         }
 
-        $this->root = \rtrim(\realpath($root), "/");
+        if (\strncmp($root, "phar://", 7) !== 0) {
+            $root = \realpath($root);
+        }
+
+        $this->root = \rtrim($root, "/");
         $this->filesystem = $filesystem ?: File\filesystem();
         $this->multipartBoundary = \uniqid("", true);
     }
