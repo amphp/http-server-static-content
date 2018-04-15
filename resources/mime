@@ -199,6 +199,7 @@ tiff        image/tiff
 tr          application/x-troff
 trm         application/x-msterminal
 tsv         text/tab-separated-values
+ttc         application/x-font-ttf
 ttf         application/x-font-ttf
 txt         text/plain
 uls         text/iuls
@@ -211,7 +212,8 @@ wdb         application/vnd.ms-works
 webma       audio/webm
 wks         application/vnd.ms-works
 wmf         application/x-msmetafile
-woff        application/x-font-woff
+woff        application/font-woff
+woff2       application/font-woff2
 wps         application/vnd.ms-works
 wri         application/x-mswrite
 wrl         x-world/x-vrml
