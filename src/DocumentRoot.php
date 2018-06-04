@@ -8,6 +8,7 @@ use Amp\ByteStream\IteratorStream;
 use Amp\CallableMaker;
 use Amp\Coroutine;
 use Amp\File;
+use Amp\Http\Server\ErrorHandler;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Response;
@@ -21,23 +22,34 @@ use Amp\Success;
 final class DocumentRoot implements RequestHandler, ServerObserver {
     use CallableMaker;
 
+    /** @var string Default mime file path. */
+    const DEFAULT_MIME_TYPE_FILE = __DIR__ . "/../resources/mime";
+
+    /** @internal */
     const READ_CHUNK_SIZE = 8192;
 
+    /** @internal */
     const PRECONDITION_NOT_MODIFIED = 1;
-    const PRECONDITION_FAILED = 2;
-    const PRECONDITION_IF_RANGE_OK = 3;
-    const PRECONDITION_IF_RANGE_FAILED = 4;
-    const PRECONDITION_OK = 5;
 
-    const DEFAULT_MIME_TYPE_FILE = __DIR__ . "/../resources/mime";
+    /** @internal */
+    const PRECONDITION_FAILED = 2;
+
+    /** @internal */
+    const PRECONDITION_IF_RANGE_OK = 3;
+
+    /** @internal */
+    const PRECONDITION_IF_RANGE_FAILED = 4;
+
+    /** @internal */
+    const PRECONDITION_OK = 5;
 
     /** @var bool */
     private $running = false;
 
-    /** @var \Amp\Http\Server\ErrorHandler */
+    /** @var ErrorHandler */
     private $errorHandler;
 
-    /** @var \Amp\Http\Server\RequestHandler|null */
+    /** @var RequestHandler|null */
     private $fallback;
 
     private $root;
@@ -59,10 +71,10 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
     private $aggressiveCacheMultiplier = 0.9;
     private $cacheEntryTtl = 10;
     private $cacheEntryCount = 0;
-    private $cacheEntryMaxCount = 2048;
+    private $cacheEntryLimit = 2048;
     private $bufferedFileCount = 0;
-    private $bufferedFileMaxCount = 50;
-    private $bufferedFileMaxSize = 524288;
+    private $bufferedFileLimit = 50;
+    private $bufferedFileSizeLimit = 524288;
 
     /**
      * @param string           $root Document root
@@ -84,7 +96,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
 
         $this->root = \rtrim($root, "/");
         $this->filesystem = $filesystem ?: File\filesystem();
-        $this->multipartBoundary = \uniqid("", true);
+        $this->multipartBoundary = \strtr(\base64_encode(\random_bytes(16)), '+/', '-_');
     }
 
     /**
@@ -130,6 +142,10 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
 
     /**
      * Respond to HTTP requests for filesystem resources.
+     *
+     * @param Request $request Request to handle.
+     *
+     * @return Promise
      */
     public function handleRequest(Request $request): Promise {
         $path = removeDotPathSegments($request->getUri()->getPath());
@@ -166,15 +182,15 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
     }
 
     private function shouldBufferContent(Internal\FileInformation $fileInfo): bool {
-        if ($fileInfo->size > $this->bufferedFileMaxSize) {
+        if ($fileInfo->size > $this->bufferedFileSizeLimit) {
             return false;
         }
 
-        if ($this->bufferedFileCount >= $this->bufferedFileMaxCount) {
+        if ($this->bufferedFileCount >= $this->bufferedFileLimit) {
             return false;
         }
 
-        if ($this->cacheEntryCount >= $this->cacheEntryMaxCount) {
+        if ($this->cacheEntryCount >= $this->cacheEntryLimit) {
             return false;
         }
 
@@ -190,7 +206,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         // Specifically use the request path to reference this file in the
         // cache because the file entry path may differ if it's reflecting
         // a directory index file.
-        if ($this->cacheEntryCount < $this->cacheEntryMaxCount) {
+        if ($this->cacheEntryCount < $this->cacheEntryLimit) {
             $this->cacheEntryCount++;
             $this->cache[$reqPath] = $fileInfo;
             $this->cacheTimeouts[$reqPath] = $this->now + $this->cacheEntryTtl;
@@ -629,25 +645,25 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         $this->cacheEntryTtl = $seconds;
     }
 
-    public function setCacheEntryMaxCount(int $count) {
+    public function setCacheEntryLimit(int $count) {
         if ($count < 1) {
             $count = 0;
         }
-        $this->cacheEntryMaxCount = $count;
+        $this->cacheEntryLimit = $count;
     }
 
-    public function setBufferedFileMaxCount(int $count) {
+    public function setBufferedFileLimit(int $count) {
         if ($count < 1) {
             $count = 0;
         }
-        $this->bufferedFileMaxCount = $count;
+        $this->bufferedFileLimit = $count;
     }
 
-    public function setBufferedFileMaxSize(int $bytes) {
+    public function setBufferedFileSizeLimit(int $bytes) {
         if ($bytes < 1) {
             $bytes = 524288;
         }
-        $this->bufferedFileMaxSize = $bytes;
+        $this->bufferedFileSizeLimit = $bytes;
     }
 
     public function onStart(Server $server): Promise {

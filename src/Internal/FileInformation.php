@@ -5,7 +5,7 @@ namespace Amp\Http\Server\StaticContent\Internal;
 use Amp\Struct;
 
 /**
- * Used in Amp\Http\Server\File\Root.
+ * Used in Amp\Http\Server\StaticContent\DocumentRoot.
  */
 final class FileInformation {
     use Struct;
