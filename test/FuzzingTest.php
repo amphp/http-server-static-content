@@ -10,9 +10,11 @@ use Amp\Promise;
 use Amp\Socket;
 use Psr\Log\NullLogger;
 
-class FuzzingTest extends TestCase {
+class FuzzingTest extends TestCase
+{
     /** @dataProvider provideAttacks */
-    public function testDocumentRootBreakout(string $input) {
+    public function testDocumentRootBreakout(string $input)
+    {
         $socket = Socket\listen("127.0.0.1:0");
         $tempDir = \sys_get_temp_dir() . '/amphp-http-server-document-root-' . \bin2hex(\random_bytes(4));
         \mkdir($tempDir);
@@ -36,7 +38,8 @@ class FuzzingTest extends TestCase {
         Promise\wait($server->stop());
     }
 
-    public function provideAttacks() {
+    public function provideAttacks()
+    {
         $secLists = __DIR__ . '/../vendor/danielmiessler/SecLists/';
         $contents = \file_get_contents($secLists . 'Fuzzing/UnixAttacks.fuzzdb.txt') . "\n";
         $contents .= \file_get_contents($secLists . 'Fuzzing/Windows-Attacks.fuzzdb.txt');

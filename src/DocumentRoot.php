@@ -19,7 +19,8 @@ use Amp\Producer;
 use Amp\Promise;
 use Amp\Success;
 
-final class DocumentRoot implements RequestHandler, ServerObserver {
+final class DocumentRoot implements RequestHandler, ServerObserver
+{
     use CallableMaker;
 
     /** @var string Default mime file path. */
@@ -82,7 +83,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
      *
      * @throws \Error On invalid root path
      */
-    public function __construct(string $root, File\Driver $filesystem = null) {
+    public function __construct(string $root, File\Driver $filesystem = null)
+    {
         $root = \str_replace("\\", "/", $root);
         if (!(\is_readable($root) && \is_dir($root))) {
             throw new \Error(
@@ -104,7 +106,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
      *
      * @param int $now
      */
-    private function clearExpiredCacheEntries(int $now) {
+    private function clearExpiredCacheEntries(int $now)
+    {
         $this->now = $now;
 
         foreach ($this->cacheTimeouts as $path => $timeout) {
@@ -132,7 +135,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
      *
      * @throws \Error If the server has started.
      */
-    public function setFallback(RequestHandler $requestHandler) {
+    public function setFallback(RequestHandler $requestHandler)
+    {
         if ($this->running) {
             throw new \Error("Cannot add fallback request handler after the server has started");
         }
@@ -147,7 +151,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
      *
      * @return Promise
      */
-    public function handleRequest(Request $request): Promise {
+    public function handleRequest(Request $request): Promise
+    {
         $path = removeDotPathSegments($request->getUri()->getPath());
 
         return new Coroutine(
@@ -157,7 +162,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         );
     }
 
-    private function fetchCachedStat(string $reqPath, Request $request) {
+    private function fetchCachedStat(string $reqPath, Request $request)
+    {
         // We specifically allow users to bypass cached representations in debug mode by
         // using their browser's "force refresh" functionality. This lets us avoid the
         // annoyance of stale file representations being served for a few seconds after
@@ -181,7 +187,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return $this->cache[$reqPath] ?? null;
     }
 
-    private function shouldBufferContent(Internal\FileInformation $fileInfo): bool {
+    private function shouldBufferContent(Internal\FileInformation $fileInfo): bool
+    {
         if ($fileInfo->size > $this->bufferedFileSizeLimit) {
             return false;
         }
@@ -197,7 +204,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return true;
     }
 
-    private function respondWithLookup(string $realPath, string $reqPath, Request $request): \Generator {
+    private function respondWithLookup(string $realPath, string $reqPath, Request $request): \Generator
+    {
         // We don't catch any potential exceptions from this yield because they represent
         // a legitimate error from some sort of disk failure. Just let them bubble up to
         // the server where they'll turn into a 500 response.
@@ -215,7 +223,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return yield from $this->respondFromFileInfo($fileInfo, $request);
     }
 
-    private function lookup(string $path): \Generator {
+    private function lookup(string $path): \Generator
+    {
         $fileInfo = new Internal\FileInformation;
 
         $fileInfo->exists = false;
@@ -248,7 +257,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return $fileInfo;
     }
 
-    private function coalesceIndexPath(string $dirPath): \Generator {
+    private function coalesceIndexPath(string $dirPath): \Generator
+    {
         $dirPath = \rtrim($dirPath, "/") . "/";
         foreach ($this->indexes as $indexFile) {
             $coalescedPath = $dirPath . $indexFile;
@@ -259,7 +269,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         }
     }
 
-    private function respondFromFileInfo(Internal\FileInformation $fileInfo, Request $request): \Generator {
+    private function respondFromFileInfo(Internal\FileInformation $fileInfo, Request $request): \Generator
+    {
         if (!$fileInfo->exists) {
             if ($this->fallback !== null) {
                 return $this->fallback->handleRequest($request);
@@ -322,7 +333,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return $response;
     }
 
-    private function checkPreconditions(Request $request, int $mtime, string $etag): int {
+    private function checkPreconditions(Request $request, int $mtime, string $etag): int
+    {
         $ifMatch = $request->getHeader("If-Match");
         if ($ifMatch && \stripos($ifMatch, $etag) === false) {
             return self::PRECONDITION_FAILED;
@@ -366,7 +378,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return ($etag === $ifRange) ? self::PRECONDITION_IF_RANGE_OK : self::PRECONDITION_IF_RANGE_FAILED;
     }
 
-    private function doNonRangeResponse(Internal\FileInformation $fileInfo): \Generator {
+    private function doNonRangeResponse(Internal\FileInformation $fileInfo): \Generator
+    {
         $headers = $this->makeCommonHeaders($fileInfo);
         $headers["Content-Length"] = (string) $fileInfo->size;
         $headers["Content-Type"] = $this->selectMimeTypeFromPath($fileInfo->path);
@@ -382,7 +395,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return $response;
     }
 
-    private function makeCommonHeaders($fileInfo): array {
+    private function makeCommonHeaders($fileInfo): array
+    {
         $headers = [
             "Accept-Ranges" => "bytes",
             "Cache-Control" => "public",
@@ -407,7 +421,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return $headers;
     }
 
-    private function selectMimeTypeFromPath(string $path): string {
+    private function selectMimeTypeFromPath(string $path): string
+    {
         $ext = \pathinfo($path, PATHINFO_EXTENSION);
         if (empty($ext)) {
             $mimeType = $this->defaultMimeType;
@@ -437,7 +452,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
      *
      * @return Internal\ByteRange|null
      */
-    private function normalizeByteRanges(int $size, string $rawRanges) {
+    private function normalizeByteRanges(int $size, string $rawRanges)
+    {
         $rawRanges = \str_ireplace([' ', 'bytes='], '', $rawRanges);
 
         $ranges = [];
@@ -484,7 +500,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return $range;
     }
 
-    private function doRangeResponse(Internal\ByteRange $range, Internal\FileInformation $fileInfo): \Generator {
+    private function doRangeResponse(Internal\ByteRange $range, Internal\FileInformation $fileInfo): \Generator
+    {
         $headers = $this->makeCommonHeaders($fileInfo);
         $range->contentType = $mime = $this->selectMimeTypeFromPath($fileInfo->path);
 
@@ -511,7 +528,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return $response;
     }
 
-    private function sendSingleRange(File\Handle $handle, int $startPos, int $endPos): InputStream {
+    private function sendSingleRange(File\Handle $handle, int $startPos, int $endPos): InputStream
+    {
         $iterator = new Producer(function (callable $emit) use ($handle, $startPos, $endPos) {
             return $this->readRangeFromHandle($handle, $emit, $startPos, $endPos);
         });
@@ -519,7 +537,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return new IteratorStream($iterator);
     }
 
-    private function sendMultiRange($handle, Internal\FileInformation $fileInfo, Internal\ByteRange $range): InputStream {
+    private function sendMultiRange($handle, Internal\FileInformation $fileInfo, Internal\ByteRange $range): InputStream
+    {
         $iterator = new Producer(function (callable $emit) use ($handle, $range, $fileInfo) {
             foreach ($range->ranges as list($startPos, $endPos)) {
                 yield $emit(sprintf(
@@ -539,7 +558,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return new IteratorStream($iterator);
     }
 
-    private function readRangeFromHandle(File\Handle $handle, callable $emit, int $startPos, int $endPos): \Generator {
+    private function readRangeFromHandle(File\Handle $handle, callable $emit, int $startPos, int $endPos): \Generator
+    {
         $bytesRemaining = $endPos - $startPos + 1;
         yield $handle->seek($startPos);
 
@@ -551,7 +571,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         }
     }
 
-    public function setIndexes(array $indexes) {
+    public function setIndexes(array $indexes)
+    {
         foreach ($indexes as $index) {
             if (!\is_string($index)) {
                 throw new \TypeError(sprintf(
@@ -564,15 +585,18 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         $this->indexes = \array_filter($indexes);
     }
 
-    public function setUseEtagInode(bool $useInode) {
+    public function setUseEtagInode(bool $useInode)
+    {
         $this->useEtagInode = $useInode;
     }
 
-    public function setExpiresPeriod(int $seconds) {
+    public function setExpiresPeriod(int $seconds)
+    {
         $this->expiresPeriod = ($seconds < 0) ? 0 : $seconds;
     }
 
-    public function loadMimeFileTypes(string $mimeFile) {
+    public function loadMimeFileTypes(string $mimeFile)
+    {
         $mimeFile = str_replace('\\', '/', $mimeFile);
         $mimeStr = @file_get_contents($mimeFile);
         if ($mimeStr === false) {
@@ -597,14 +621,16 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         $this->mimeFileTypes = $mimeTypes;
     }
 
-    public function setMimeTypes(array $mimeTypes) {
+    public function setMimeTypes(array $mimeTypes)
+    {
         foreach ($mimeTypes as $ext => $type) {
             $ext = strtolower(ltrim($ext, '.'));
             $this->mimeTypes[$ext] = $type;
         }
     }
 
-    public function setDefaultMimeType(string $mimeType) {
+    public function setDefaultMimeType(string $mimeType)
+    {
         if (empty($mimeType)) {
             throw new \Error(
                 'Default mime type expects a non-empty string'
@@ -614,7 +640,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         $this->defaultMimeType = $mimeType;
     }
 
-    public function setDefaultTextCharset(string $charset) {
+    public function setDefaultTextCharset(string $charset)
+    {
         if (empty($charset)) {
             throw new \Error(
                 'Default charset expects a non-empty string'
@@ -624,11 +651,13 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         $this->defaultCharset = $charset;
     }
 
-    public function setUseAggressiveCacheHeaders(bool $bool) {
+    public function setUseAggressiveCacheHeaders(bool $bool)
+    {
         $this->useAggressiveCacheHeaders = $bool;
     }
 
-    public function setAggressiveCacheMultiplier(float $multiplier) {
+    public function setAggressiveCacheMultiplier(float $multiplier)
+    {
         if ($multiplier > 0.00 && $multiplier < 1.0) {
             $this->aggressiveCacheMultiplier = $multiplier;
         } else {
@@ -638,35 +667,40 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         }
     }
 
-    public function setCacheEntryTtl(int $seconds) {
+    public function setCacheEntryTtl(int $seconds)
+    {
         if ($seconds < 1) {
             $seconds = 10;
         }
         $this->cacheEntryTtl = $seconds;
     }
 
-    public function setCacheEntryLimit(int $count) {
+    public function setCacheEntryLimit(int $count)
+    {
         if ($count < 1) {
             $count = 0;
         }
         $this->cacheEntryLimit = $count;
     }
 
-    public function setBufferedFileLimit(int $count) {
+    public function setBufferedFileLimit(int $count)
+    {
         if ($count < 1) {
             $count = 0;
         }
         $this->bufferedFileLimit = $count;
     }
 
-    public function setBufferedFileSizeLimit(int $bytes) {
+    public function setBufferedFileSizeLimit(int $bytes)
+    {
         if ($bytes < 1) {
             $bytes = 524288;
         }
         $this->bufferedFileSizeLimit = $bytes;
     }
 
-    public function onStart(Server $server): Promise {
+    public function onStart(Server $server): Promise
+    {
         $this->running = true;
 
         if (empty($this->mimeFileTypes)) {
@@ -686,7 +720,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver {
         return new Success;
     }
 
-    public function onStop(Server $server): Promise {
+    public function onStop(Server $server): Promise
+    {
         $this->cache = [];
         $this->cacheTimeouts = [];
         $this->cacheEntryCount = 0;

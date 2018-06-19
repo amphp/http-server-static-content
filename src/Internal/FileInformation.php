@@ -7,7 +7,8 @@ use Amp\Struct;
 /**
  * Used in Amp\Http\Server\StaticContent\DocumentRoot.
  */
-final class FileInformation {
+final class FileInformation
+{
     use Struct;
 
     /** @var bool */

@@ -7,7 +7,8 @@ use Amp\Struct;
 /**
  * Used in Amp\Http\Server\StaticContent\DocumentRoot.
  */
-final class ByteRange {
+final class ByteRange
+{
     use Struct;
 
     public $ranges;

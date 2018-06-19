@@ -12,7 +12,8 @@ namespace Amp\Http\Server\StaticContent;
  *
  * @return string
  */
-function removeDotPathSegments(string $path): string {
+function removeDotPathSegments(string $path): string
+{
     // IMPORTANT! Do NOT remove this. If this is left in, we'll be able to use /path\..\../outsideDocRoot defeating
     // the removeDotPathSegments() function! (on Windows at least)
     $path = \str_replace("\\", "/", $path);
