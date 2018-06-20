@@ -168,8 +168,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         // using their browser's "force refresh" functionality. This lets us avoid the
         // annoyance of stale file representations being served for a few seconds after
         // changes have been written to disk.
-        if (!$this->debug) {
-            return $this->cache[$reqPath] ?? null;
+        if ($this->debug) {
+            return null;
         }
 
         foreach ($request->getHeaderArray("Cache-Control") as $value) {
