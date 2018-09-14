@@ -27,6 +27,7 @@
         }
     ],
     "require": {
+        "php": ">=7",
         "amphp/amp": "^2.0.3",
         "amphp/byte-stream": "^1.2",
         "amphp/file": "^0.3",
@@ -35,6 +36,7 @@
         "cash/lrucache": "^1"
     },
     "require-dev": {
+        "amphp/http-server-router": "^1",
         "amphp/phpunit-util": "^1",
         "friendsofphp/php-cs-fixer": "^2.3",
         "league/uri-schemes": "^1.1",
