@@ -78,8 +78,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver
     private $bufferedFileSizeLimit = 524288;
 
     /**
-     * @param string           $root Document root
-     * @param \Amp\File\Driver $filesystem Optional filesystem driver
+     * @param string      $root Document root
+     * @param File\Driver $filesystem Optional filesystem driver
      *
      * @throws \Error On invalid root path
      */

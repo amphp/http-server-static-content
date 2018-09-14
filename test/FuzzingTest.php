@@ -12,17 +12,42 @@ use Psr\Log\NullLogger;
 
 class FuzzingTest extends TestCase
 {
+    /** @var Socket\Server */
+    private static $socket;
+
+    /** @var string */
+    private static $documentRoot;
+
+    public static function setUpBeforeClass()
+    {
+        parent::setUpBeforeClass();
+
+        self::$socket = Socket\listen("127.0.0.1:0");
+        self::$documentRoot = \sys_get_temp_dir() . '/amphp-http-server-document-root-' . \bin2hex(\random_bytes(4));
+
+        \mkdir(self::$documentRoot);
+    }
+
+    public static function tearDownAfterClass()
+    {
+        parent::tearDownAfterClass();
+
+        if (\file_exists(self::$documentRoot)) {
+            \unlink(self::$documentRoot);
+        }
+
+        self::$socket = null;
+    }
+
+
     /** @dataProvider provideAttacks */
     public function testDocumentRootBreakout(string $input)
     {
-        $socket = Socket\listen("127.0.0.1:0");
-        $tempDir = \sys_get_temp_dir() . '/amphp-http-server-document-root-' . \bin2hex(\random_bytes(4));
-        \mkdir($tempDir);
-        $server = new Server([$socket], new DocumentRoot($tempDir), new NullLogger);
+        $server = new Server([self::$socket], new DocumentRoot(self::$documentRoot), new NullLogger);
         Promise\wait($server->start());
 
         /** @var Socket\ClientSocket $client */
-        $client = Promise\wait(Socket\connect($socket->getAddress()));
+        $client = Promise\wait(Socket\connect(self::$socket->getAddress()));
         Promise\wait($client->write("GET {$input} HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n"));
 
         $response = Promise\wait((new Payload($client))->buffer());
