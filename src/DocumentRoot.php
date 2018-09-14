@@ -380,12 +380,17 @@ final class DocumentRoot implements RequestHandler, ServerObserver
     private function doNonRangeResponse(Internal\FileInformation $fileInfo): \Generator
     {
         $headers = $this->makeCommonHeaders($fileInfo);
-        $headers["Content-Length"] = (string) $fileInfo->size;
         $headers["Content-Type"] = $this->selectMimeTypeFromPath($fileInfo->path);
 
-        if (isset($fileInfo->buffer)) {
+        if ($fileInfo->buffer !== null) {
+            $headers["Content-Length"] = (string) $fileInfo->size;
+
             return new Response(Status::OK, $headers, new InMemoryStream($fileInfo->buffer));
         }
+
+        // Don't use cached size if we don't have buffered file contents,
+        // otherwise we get truncated files during development.
+        $headers["Content-Length"] = (string) $this->filesystem->size($fileInfo->path);
 
         $handle = yield $this->filesystem->open($fileInfo->path, "r");
 
