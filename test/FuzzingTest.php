@@ -33,7 +33,7 @@ class FuzzingTest extends TestCase
         parent::tearDownAfterClass();
 
         if (\file_exists(self::$documentRoot)) {
-            \unlink(self::$documentRoot);
+            \rmdir(self::$documentRoot);
         }
 
         self::$socket = null;
