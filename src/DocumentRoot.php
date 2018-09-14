@@ -164,10 +164,9 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
     private function fetchCachedStat(string $reqPath, Request $request)
     {
-        // We specifically allow users to bypass cached representations in debug mode by
-        // using their browser's "force refresh" functionality. This lets us avoid the
-        // annoyance of stale file representations being served for a few seconds after
-        // changes have been written to disk.
+        // We specifically allow users to bypass cached representations by using their browser's "force refresh"
+        // functionality. This lets us avoid the annoyance of stale file representations being served for a few seconds
+        // after changes have been written to disk.
         if ($this->debug) {
             return null;
         }
