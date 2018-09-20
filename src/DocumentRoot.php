@@ -390,7 +390,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
         // Don't use cached size if we don't have buffered file contents,
         // otherwise we get truncated files during development.
-        $headers["Content-Length"] = (string) $this->filesystem->size($fileInfo->path);
+        $headers["Content-Length"] = (string) yield $this->filesystem->size($fileInfo->path);
 
         $handle = yield $this->filesystem->open($fileInfo->path, "r");
 
