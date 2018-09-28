@@ -229,6 +229,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $fileInfo->exists = false;
         $fileInfo->path = $path;
 
+        File\StatCache::clear($path);
         if (!$stat = yield $this->filesystem->stat($path)) {
             return $fileInfo;
         }
@@ -250,6 +251,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
         if ($this->shouldBufferContent($fileInfo)) {
             $fileInfo->buffer = yield $this->filesystem->get($fileInfo->path);
+            $fileInfo->size = \strlen($fileInfo->buffer); // there's a slight chance for the size to change, be safe
             $this->bufferedFileCount++;
         }
 
