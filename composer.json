@@ -31,7 +31,7 @@
         "amphp/amp": "^2.0.3",
         "amphp/byte-stream": "^1.2",
         "amphp/file": "^0.3",
-        "amphp/http-server": "^0.8",
+        "amphp/http-server": "^1 || ^0.8",
         "amphp/http": "^1",
         "cash/lrucache": "^1"
     },
