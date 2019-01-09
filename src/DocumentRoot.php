@@ -414,11 +414,11 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         if ($canCache && $this->useAggressiveCacheHeaders) {
             $postCheck = (int) ($this->expiresPeriod * $this->aggressiveCacheMultiplier);
             $preCheck = $this->expiresPeriod - $postCheck;
-            $expiry = $this->expiresPeriod;
-            $value = "post-check={$postCheck}, pre-check={$preCheck}, max-age={$expiry}";
-            $headers["Cache-Control"] = $value;
-        } elseif ($canCache) {
+            $value = ", post-check={$postCheck}, pre-check={$preCheck}, max-age={$this->expiresPeriod}";
+            $headers["Cache-Control"] .= $value;
+        } else if ($canCache) {
             $expiry = $this->now + $this->expiresPeriod;
+            $headers["Cache-Control"] .= ", max-age={$this->expiresPeriod}";
             $headers["Expires"] = \gmdate('D, d M Y H:i:s', $expiry) . " GMT";
         } else {
             $headers["Expires"] = "0";
