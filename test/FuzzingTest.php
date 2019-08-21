@@ -46,8 +46,8 @@ class FuzzingTest extends TestCase
         $server = new Server([self::$socket], new DocumentRoot(self::$documentRoot), new NullLogger);
         Promise\wait($server->start());
 
-        /** @var Socket\ClientSocket $client */
-        $client = Promise\wait(Socket\connect(self::$socket->getAddress()));
+        /** @var Socket\ResourceSocket $client */
+        $client = Promise\wait(Socket\connect((string) self::$socket->getAddress()));
         Promise\wait($client->write("GET {$input} HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n"));
 
         $response = Promise\wait((new Payload($client))->buffer());
