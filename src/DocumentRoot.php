@@ -5,7 +5,6 @@ namespace Amp\Http\Server\StaticContent;
 use Amp\ByteStream\InMemoryStream;
 use Amp\ByteStream\InputStream;
 use Amp\ByteStream\IteratorStream;
-use Amp\CallableMaker;
 use Amp\Coroutine;
 use Amp\File;
 use Amp\Http\Server\ErrorHandler;
@@ -21,8 +20,6 @@ use Amp\Success;
 
 final class DocumentRoot implements RequestHandler, ServerObserver
 {
-    use CallableMaker;
-
     /** @var string Default mime file path. */
     const DEFAULT_MIME_TYPE_FILE = __DIR__ . "/../resources/mime";
 
@@ -106,7 +103,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
      *
      * @param int $now
      */
-    private function clearExpiredCacheEntries(int $now)
+    private function clearExpiredCacheEntries(int $now): void
     {
         $this->now = $now;
 
@@ -135,7 +132,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
      *
      * @throws \Error If the server has started.
      */
-    public function setFallback(RequestHandler $requestHandler)
+    public function setFallback(RequestHandler $requestHandler): void
     {
         if ($this->running) {
             throw new \Error("Cannot add fallback request handler after the server has started");
@@ -458,7 +455,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
      *
      * @return Internal\ByteRange|null
      */
-    private function normalizeByteRanges(int $size, string $rawRanges)
+    private function normalizeByteRanges(int $size, string $rawRanges): ?Internal\ByteRange
     {
         $rawRanges = \str_ireplace([' ', 'bytes='], '', $rawRanges);
 
@@ -577,7 +574,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         }
     }
 
-    public function setIndexes(array $indexes)
+    public function setIndexes(array $indexes): void
     {
         foreach ($indexes as $index) {
             if (!\is_string($index)) {
@@ -591,17 +588,17 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->indexes = \array_filter($indexes);
     }
 
-    public function setUseEtagInode(bool $useInode)
+    public function setUseEtagInode(bool $useInode): void
     {
         $this->useEtagInode = $useInode;
     }
 
-    public function setExpiresPeriod(int $seconds)
+    public function setExpiresPeriod(int $seconds): void
     {
         $this->expiresPeriod = ($seconds < 0) ? 0 : $seconds;
     }
 
-    public function loadMimeFileTypes(string $mimeFile)
+    public function loadMimeFileTypes(string $mimeFile): void
     {
         $mimeFile = \str_replace('\\', '/', $mimeFile);
         $mimeStr = @\file_get_contents($mimeFile);
@@ -627,7 +624,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->mimeFileTypes = $mimeTypes;
     }
 
-    public function setMimeTypes(array $mimeTypes)
+    public function setMimeTypes(array $mimeTypes): void
     {
         foreach ($mimeTypes as $ext => $type) {
             $ext = \strtolower(\ltrim($ext, '.'));
@@ -635,7 +632,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         }
     }
 
-    public function setDefaultMimeType(string $mimeType)
+    public function setDefaultMimeType(string $mimeType): void
     {
         if (empty($mimeType)) {
             throw new \Error(
@@ -646,7 +643,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->defaultMimeType = $mimeType;
     }
 
-    public function setDefaultTextCharset(string $charset)
+    public function setDefaultTextCharset(string $charset): void
     {
         if (empty($charset)) {
             throw new \Error(
@@ -657,12 +654,12 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->defaultCharset = $charset;
     }
 
-    public function setUseAggressiveCacheHeaders(bool $bool)
+    public function setUseAggressiveCacheHeaders(bool $bool): void
     {
         $this->useAggressiveCacheHeaders = $bool;
     }
 
-    public function setAggressiveCacheMultiplier(float $multiplier)
+    public function setAggressiveCacheMultiplier(float $multiplier): void
     {
         if ($multiplier > 0.00 && $multiplier < 1.0) {
             $this->aggressiveCacheMultiplier = $multiplier;
@@ -673,7 +670,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         }
     }
 
-    public function setCacheEntryTtl(int $seconds)
+    public function setCacheEntryTtl(int $seconds): void
     {
         if ($seconds < 1) {
             $seconds = 10;
@@ -681,7 +678,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->cacheEntryTtl = $seconds;
     }
 
-    public function setCacheEntryLimit(int $count)
+    public function setCacheEntryLimit(int $count): void
     {
         if ($count < 1) {
             $count = 0;
@@ -689,7 +686,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->cacheEntryLimit = $count;
     }
 
-    public function setBufferedFileLimit(int $count)
+    public function setBufferedFileLimit(int $count): void
     {
         if ($count < 1) {
             $count = 0;
@@ -697,7 +694,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->bufferedFileLimit = $count;
     }
 
-    public function setBufferedFileSizeLimit(int $bytes)
+    public function setBufferedFileSizeLimit(int $bytes): void
     {
         if ($bytes < 1) {
             $bytes = 524288;
@@ -717,7 +714,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
         $this->debug = $server->getOptions()->isInDebugMode();
 
-        $server->getTimeReference()->onTimeUpdate($this->callableFromInstanceMethod("clearExpiredCacheEntries"));
+        $server->getTimeReference()->onTimeUpdate(\Closure::fromCallable([$this, "clearExpiredCacheEntries"]));
 
         if ($this->fallback instanceof ServerObserver) {
             return $this->fallback->onStart($server);

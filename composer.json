@@ -27,7 +27,7 @@
         }
     ],
     "require": {
-        "php": ">=7",
+        "php": ">=7.1",
         "amphp/amp": "^2.0.3",
         "amphp/byte-stream": "^1.2",
         "amphp/file": "^1 || ^0.3",
@@ -37,11 +37,11 @@
     },
     "require-dev": {
         "amphp/http-server-router": "^1",
-        "amphp/phpunit-util": "^1",
+        "amphp/phpunit-util": "^1.1",
         "amphp/php-cs-fixer-config": "dev-master",
         "league/uri-schemes": "^1.1",
-        "phpunit/phpunit": "^6",
-        "danielmiessler/SecLists": "1.0"
+        "phpunit/phpunit": "^8 || ^7",
+        "danielmiessler/SecLists": "2019.3"
     },
     "autoload": {
         "psr-4": {
@@ -65,7 +65,7 @@
             "type": "package",
             "package": {
                 "name": "danielmiessler/SecLists",
-                "version": "1.0",
+                "version": "2019.3",
                 "source": {
                     "url": "https://github.com/danielmiessler/SecLists",
                     "type": "git",

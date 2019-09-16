@@ -5,12 +5,11 @@ namespace Amp\Http\Server\StaticContent\Test;
 use Amp\ByteStream\Payload;
 use Amp\Http\Server\Server;
 use Amp\Http\Server\StaticContent\DocumentRoot;
-use Amp\PHPUnit\TestCase;
-use Amp\Promise;
+use Amp\PHPUnit\AsyncTestCase;
 use Amp\Socket;
 use Psr\Log\NullLogger;
 
-class FuzzingTest extends TestCase
+class FuzzingTest extends AsyncTestCase
 {
     /** @var Socket\Server */
     private static $socket;
@@ -18,7 +17,7 @@ class FuzzingTest extends TestCase
     /** @var string */
     private static $documentRoot;
 
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         parent::setUpBeforeClass();
 
@@ -28,7 +27,7 @@ class FuzzingTest extends TestCase
         \mkdir(self::$documentRoot);
     }
 
-    public static function tearDownAfterClass()
+    public static function tearDownAfterClass(): void
     {
         parent::tearDownAfterClass();
 
@@ -41,16 +40,16 @@ class FuzzingTest extends TestCase
 
 
     /** @dataProvider provideAttacks */
-    public function testDocumentRootBreakout(string $input)
+    public function testDocumentRootBreakout(string $input): \Generator
     {
         $server = new Server([self::$socket], new DocumentRoot(self::$documentRoot), new NullLogger);
-        Promise\wait($server->start());
+        yield $server->start();
 
         /** @var Socket\ResourceSocket $client */
-        $client = Promise\wait(Socket\connect((string) self::$socket->getAddress()));
-        Promise\wait($client->write("GET {$input} HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n"));
+        $client = yield Socket\connect((string) self::$socket->getAddress());
+        yield $client->write("GET {$input} HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n");
 
-        $response = Promise\wait((new Payload($client))->buffer());
+        $response = yield (new Payload($client))->buffer();
         $this->assertRegExp('(
             HTTP/1\.0\ 400\ Bad\ Request:\ (?:
                 invalid\ request\ line|
@@ -60,10 +59,10 @@ class FuzzingTest extends TestCase
             ^$
         )x', $response);
 
-        Promise\wait($server->stop());
+        yield $server->stop();
     }
 
-    public function provideAttacks()
+    public function provideAttacks(): array
     {
         $secLists = __DIR__ . '/../vendor/danielmiessler/SecLists/';
         $contents = \file_get_contents($secLists . 'Fuzzing/UnixAttacks.fuzzdb.txt') . "\n";
