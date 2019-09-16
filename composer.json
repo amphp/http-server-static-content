@@ -30,7 +30,7 @@
         "php": ">=7",
         "amphp/amp": "^2.0.3",
         "amphp/byte-stream": "^1.2",
-        "amphp/file": "^0.3",
+        "amphp/file": "^1 || ^0.3",
         "amphp/http-server": "^2 || ^1 || ^0.8",
         "amphp/http": "^1",
         "cash/lrucache": "^1"
@@ -54,11 +54,6 @@
     "autoload-dev": {
         "psr-4": {
             "Amp\\Http\\Server\\StaticContent\\Test\\": "test"
-        }
-    },
-    "config": {
-        "platform": {
-            "php": "7.0.13"
         }
     },
     "scripts": {
