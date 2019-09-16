@@ -172,13 +172,13 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         }
 
         foreach ($request->getHeaderArray("Cache-Control") as $value) {
-            if (strcasecmp($value, "no-cache") === 0) {
+            if (\strcasecmp($value, "no-cache") === 0) {
                 return null;
             }
         }
 
         foreach ($request->getHeaderArray("Pragma") as $value) {
-            if (strcasecmp($value, "no-cache") === 0) {
+            if (\strcasecmp($value, "no-cache") === 0) {
                 return null;
             }
         }
@@ -466,11 +466,11 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
         foreach (\explode(',', $rawRanges) as $range) {
             // If a range is missing the dash separator it's malformed; pull out here.
-            if (false === strpos($range, '-')) {
+            if (false === \strpos($range, '-')) {
                 return null;
             }
 
-            list($startPos, $endPos) = explode('-', rtrim($range), 2);
+            list($startPos, $endPos) = \explode('-', \rtrim($range), 2);
 
             if ($startPos === '' && $endPos === '') {
                 return null;
@@ -547,7 +547,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
     {
         $iterator = new Producer(function (callable $emit) use ($handle, $range, $fileInfo) {
             foreach ($range->ranges as list($startPos, $endPos)) {
-                yield $emit(sprintf(
+                yield $emit(\sprintf(
                     "--%s\r\nContent-Type: %s\r\nContent-Range: bytes %d-%d/%d\r\n\r\n",
                     $range->boundary,
                     $range->contentType,
@@ -581,7 +581,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
     {
         foreach ($indexes as $index) {
             if (!\is_string($index)) {
-                throw new \TypeError(sprintf(
+                throw new \TypeError(\sprintf(
                     "Array of string index filenames required: %s provided",
                     \gettype($index)
                 ));
@@ -603,8 +603,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
     public function loadMimeFileTypes(string $mimeFile)
     {
-        $mimeFile = str_replace('\\', '/', $mimeFile);
-        $mimeStr = @file_get_contents($mimeFile);
+        $mimeFile = \str_replace('\\', '/', $mimeFile);
+        $mimeStr = @\file_get_contents($mimeFile);
         if ($mimeStr === false) {
             throw new \Exception(
                 "Failed loading mime associations from file {$mimeFile}"
@@ -612,7 +612,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         }
 
         /** @var array[] $matches */
-        if (!preg_match_all('#\s*([a-z0-9]+)\s+([a-z0-9\-]+/[a-z0-9\-]+(?:\+[a-z0-9\-]+)?)#i', $mimeStr, $matches)) {
+        if (!\preg_match_all('#\s*([a-z0-9]+)\s+([a-z0-9\-]+/[a-z0-9\-]+(?:\+[a-z0-9\-]+)?)#i', $mimeStr, $matches)) {
             throw new \Exception(
                 "No mime associations found in file: {$mimeFile}"
             );
@@ -621,7 +621,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $mimeTypes = [];
 
         foreach ($matches[1] as $key => $value) {
-            $mimeTypes[strtolower($value)] = $matches[2][$key];
+            $mimeTypes[\strtolower($value)] = $matches[2][$key];
         }
 
         $this->mimeFileTypes = $mimeTypes;
@@ -630,7 +630,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
     public function setMimeTypes(array $mimeTypes)
     {
         foreach ($mimeTypes as $ext => $type) {
-            $ext = strtolower(ltrim($ext, '.'));
+            $ext = \strtolower(\ltrim($ext, '.'));
             $this->mimeTypes[$ext] = $type;
         }
     }

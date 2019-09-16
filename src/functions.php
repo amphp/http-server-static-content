@@ -18,7 +18,7 @@ function removeDotPathSegments(string $path): string
     // the removeDotPathSegments() function! (on Windows at least)
     $path = \str_replace("\\", "/", $path);
 
-    if (strpos($path, '/.') === false) {
+    if (\strpos($path, '/.') === false) {
         return $path;
     }
 
@@ -29,12 +29,12 @@ function removeDotPathSegments(string $path): string
     while ($inputBuffer !== '') {
         // A.  If the input buffer begins with a prefix of "../" or "./",
         //     then remove that prefix from the input buffer; otherwise,
-        if (strpos($inputBuffer, "./") === 0) {
-            $inputBuffer = substr($inputBuffer, 2);
+        if (\strpos($inputBuffer, "./") === 0) {
+            $inputBuffer = \substr($inputBuffer, 2);
             continue;
         }
-        if (strpos($inputBuffer, "../") === 0) {
-            $inputBuffer = substr($inputBuffer, 3);
+        if (\strpos($inputBuffer, "../") === 0) {
+            $inputBuffer = \substr($inputBuffer, 3);
             continue;
         }
 
@@ -45,8 +45,8 @@ function removeDotPathSegments(string $path): string
             $outputStack[] = '/';
             break;
         }
-        if (substr($inputBuffer, 0, 3) === "/./") {
-            $inputBuffer = substr($inputBuffer, 2);
+        if (\substr($inputBuffer, 0, 3) === "/./") {
+            $inputBuffer = \substr($inputBuffer, 2);
             continue;
         }
 
@@ -56,13 +56,13 @@ function removeDotPathSegments(string $path): string
         //     segment and its preceding "/" (if any) from the output
         //     buffer; otherwise,
         if ($inputBuffer === "/..") {
-            array_pop($outputStack);
+            \array_pop($outputStack);
             $outputStack[] = '/';
             break;
         }
-        if (substr($inputBuffer, 0, 4) === "/../") {
-            while (array_pop($outputStack) === "/");
-            $inputBuffer = substr($inputBuffer, 3);
+        if (\substr($inputBuffer, 0, 4) === "/../") {
+            while (\array_pop($outputStack) === "/");
+            $inputBuffer = \substr($inputBuffer, 3);
             continue;
         }
 
@@ -80,9 +80,9 @@ function removeDotPathSegments(string $path): string
             $outputStack[] = $inputBuffer;
             break;
         }
-        $outputStack[] = substr($inputBuffer, 0, $slashPos);
-        $inputBuffer = substr($inputBuffer, $slashPos);
+        $outputStack[] = \substr($inputBuffer, 0, $slashPos);
+        $inputBuffer = \substr($inputBuffer, $slashPos);
     }
 
-    return implode($outputStack);
+    return \implode($outputStack);
 }

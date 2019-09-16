@@ -3,9 +3,9 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use Amp\Http\Server\RequestHandler\CallableRequestHandler;
+use Amp\Http\Server\Response;
 use Amp\Http\Server\Router;
 use Amp\Http\Server\Server;
-use Amp\Http\Server\Response;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Status;
 use Amp\Socket;

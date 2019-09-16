@@ -34,12 +34,12 @@ class DocumentRootTest extends TestCase
         self::$loop = Loop::get();
 
         $fixtureDir = self::fixturePath();
-        if (!file_exists($fixtureDir) && !\mkdir($fixtureDir)) {
+        if (!\file_exists($fixtureDir) && !\mkdir($fixtureDir)) {
             throw new \RuntimeException(
                 "Failed creating temporary test fixture directory: {$fixtureDir}"
             );
         }
-        if (!file_exists($fixtureDir. "/dir") && !\mkdir($fixtureDir . "/dir")) {
+        if (!\file_exists($fixtureDir. "/dir") && !\mkdir($fixtureDir . "/dir")) {
             throw new \RuntimeException(
                 "Failed creating temporary test fixture directory"
             );
@@ -283,8 +283,8 @@ class DocumentRootTest extends TestCase
     {
         $root = new DocumentRoot(self::fixturePath());
         $root->setUseEtagInode(false);
-        $diskPath = realpath(self::fixturePath())."/index.htm";
-        $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
+        $diskPath = \realpath(self::fixturePath())."/index.htm";
+        $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
 
         $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
             "if-match" => $etag,
@@ -296,7 +296,7 @@ class DocumentRootTest extends TestCase
         $response = Promise\wait($promise);
 
         $this->assertSame(Status::NOT_MODIFIED, $response->getStatus());
-        $this->assertSame(gmdate("D, d M Y H:i:s", filemtime($diskPath))." GMT", $response->getHeader("last-modified"));
+        $this->assertSame(\gmdate("D, d M Y H:i:s", \filemtime($diskPath))." GMT", $response->getHeader("last-modified"));
         $this->assertSame($etag, $response->getHeader("etag"));
     }
 
@@ -304,8 +304,8 @@ class DocumentRootTest extends TestCase
     {
         $root = new DocumentRoot(self::fixturePath());
         $root->setUseEtagInode(false);
-        $diskPath = realpath(self::fixturePath())."/index.htm";
-        $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
+        $diskPath = \realpath(self::fixturePath())."/index.htm";
+        $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
 
         $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
             "if-range" => "foo",
@@ -328,8 +328,8 @@ class DocumentRootTest extends TestCase
         $root->setUseEtagInode(false);
         $root->onStart($server);
 
-        $diskPath = realpath(self::fixturePath())."/index.htm";
-        $etag = md5($diskPath.filemtime($diskPath).filesize($diskPath));
+        $diskPath = \realpath(self::fixturePath())."/index.htm";
+        $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
 
         $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
             "if-range" => $etag,
@@ -384,8 +384,8 @@ class DocumentRootTest extends TestCase
             }],
             ["-0,1-2,2-", function ($headers, $body) {
                 $start = "multipart/byteranges; boundary=";
-                $this->assertEquals($start, substr($headers["content-type"][0], 0, strlen($start)));
-                $boundary = substr($headers["content-type"][0], strlen($start));
+                $this->assertEquals($start, \substr($headers["content-type"][0], 0, \strlen($start)));
+                $boundary = \substr($headers["content-type"][0], \strlen($start));
                 foreach ([["3-3", "t"], ["1-2", "es"], ["2-3", "st"]] as list($range, $text)) {
                     $expected = <<<PART
 --$boundary\r
@@ -395,8 +395,8 @@ Content-Range: bytes $range/4\r
 $text\r
 
 PART;
-                    $this->assertEquals($expected, substr($body, 0, strlen($expected)));
-                    $body = substr($body, strlen($expected));
+                    $this->assertEquals($expected, \substr($body, 0, \strlen($expected)));
+                    $body = \substr($body, \strlen($expected));
                 }
                 $this->assertEquals("--$boundary--", $body);
             }],

@@ -38,7 +38,7 @@
     "require-dev": {
         "amphp/http-server-router": "^1",
         "amphp/phpunit-util": "^1",
-        "friendsofphp/php-cs-fixer": "^2.3",
+        "amphp/php-cs-fixer-config": "dev-master",
         "league/uri-schemes": "^1.1",
         "phpunit/phpunit": "^6",
         "danielmiessler/SecLists": "1.0"
