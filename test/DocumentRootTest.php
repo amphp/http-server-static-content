@@ -80,7 +80,7 @@ class DocumentRootTest extends TestCase
 
     public function createServer(Options $options = null): Server
     {
-        $socket = Socket\Server::listen('127.0.0.1:0');
+        $socket = Socket\listen('127.0.0.1:0');
 
         $server = new Server(
             [$socket],
