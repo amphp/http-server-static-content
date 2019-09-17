@@ -41,7 +41,7 @@
         "amphp/php-cs-fixer-config": "dev-master",
         "league/uri-schemes": "^1.1",
         "phpunit/phpunit": "^8 || ^7",
-        "danielmiessler/SecLists": "2019.3"
+        "danielmiessler/sec-lists": "2019.3"
     },
     "autoload": {
         "psr-4": {
@@ -64,7 +64,7 @@
         {
             "type": "package",
             "package": {
-                "name": "danielmiessler/SecLists",
+                "name": "danielmiessler/sec-lists",
                 "version": "2019.3",
                 "source": {
                     "url": "https://github.com/danielmiessler/SecLists",

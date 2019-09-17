@@ -64,7 +64,7 @@ class FuzzingTest extends AsyncTestCase
 
     public function provideAttacks(): array
     {
-        $secLists = __DIR__ . '/../vendor/danielmiessler/SecLists/';
+        $secLists = __DIR__ . '/../vendor/danielmiessler/sec-lists/';
         $contents = \file_get_contents($secLists . 'Fuzzing/UnixAttacks.fuzzdb.txt') . "\n";
         $contents .= \file_get_contents($secLists . 'Fuzzing/Windows-Attacks.fuzzdb.txt');
         $cases = [];
