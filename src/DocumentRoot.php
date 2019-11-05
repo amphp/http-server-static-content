@@ -14,9 +14,11 @@ use Amp\Http\Server\Response;
 use Amp\Http\Server\Server;
 use Amp\Http\Server\ServerObserver;
 use Amp\Http\Status;
+use Amp\Loop;
 use Amp\Producer;
 use Amp\Promise;
 use Amp\Success;
+use function Amp\Http\formatDateHeader;
 
 final class DocumentRoot implements RequestHandler, ServerObserver
 {
@@ -57,6 +59,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
     private $cache = [];
     private $cacheTimeouts = [];
     private $now;
+    private $watcher;
 
     private $mimeTypes = [];
     private $mimeFileTypes = [];
@@ -100,15 +103,13 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
     /**
      * Removes expired file information from the cache and updates the current 'now' value.
-     *
-     * @param int $now
      */
-    private function clearExpiredCacheEntries(int $now): void
+    private function clearExpiredCacheEntries(): void
     {
-        $this->now = $now;
+        $this->now = \time();
 
         foreach ($this->cacheTimeouts as $path => $timeout) {
-            if ($now <= $timeout) {
+            if ($this->now <= $timeout) {
                 break;
             }
 
@@ -299,7 +300,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
         switch ($precondition) {
             case self::PRECONDITION_NOT_MODIFIED:
-                $lastModifiedHttpDate = \gmdate('D, d M Y H:i:s', $fileInfo->mtime) . " GMT";
+                $lastModifiedHttpDate = formatDateHeader($fileInfo->mtime);
                 $response = new Response(Status::NOT_MODIFIED, ["Last-Modified" => $lastModifiedHttpDate]);
                 if ($fileInfo->etag) {
                     $response->setHeader("Etag", $fileInfo->etag);
@@ -398,13 +399,13 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         return $response;
     }
 
-    private function makeCommonHeaders($fileInfo): array
+    private function makeCommonHeaders(Internal\FileInformation $fileInfo): array
     {
         $headers = [
             "Accept-Ranges" => "bytes",
             "Cache-Control" => "public",
             "Etag" => $fileInfo->etag,
-            "Last-Modified" => \gmdate('D, d M Y H:i:s', $fileInfo->mtime) . " GMT",
+            "Last-Modified" => formatDateHeader($fileInfo->mtime),
         ];
 
         $canCache = ($this->expiresPeriod > 0);
@@ -416,7 +417,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         } elseif ($canCache) {
             $expiry = $this->now + $this->expiresPeriod;
             $headers["Cache-Control"] .= ", max-age={$this->expiresPeriod}";
-            $headers["Expires"] = \gmdate('D, d M Y H:i:s', $expiry) . " GMT";
+            $headers["Expires"] = formatDateHeader($expiry);
         } else {
             $headers["Expires"] = "0";
         }
@@ -714,7 +715,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
         $this->debug = $server->getOptions()->isInDebugMode();
 
-        $server->getTimeReference()->onTimeUpdate(\Closure::fromCallable([$this, "clearExpiredCacheEntries"]));
+        $this->now = \time();
+        $this->watcher = Loop::repeat(1000, \Closure::fromCallable([$this, "clearExpiredCacheEntries"]));
 
         if ($this->fallback instanceof ServerObserver) {
             return $this->fallback->onStart($server);
@@ -730,6 +732,10 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->cacheEntryCount = 0;
         $this->bufferedFileCount = 0;
         $this->running = false;
+
+        if ($this->watcher) {
+            Loop::cancel($this->watcher);
+        }
 
         if ($this->fallback instanceof ServerObserver) {
             return $this->fallback->onStop($server);
