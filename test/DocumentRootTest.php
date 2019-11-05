@@ -12,8 +12,8 @@ use Amp\Http\Status;
 use Amp\Loop;
 use Amp\Promise;
 use Amp\Socket;
-use League\Uri;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\UriInterface as PsrUri;
 use Psr\Log\LoggerInterface as PsrLogger;
 
 class DocumentRootTest extends TestCase
@@ -23,7 +23,7 @@ class DocumentRootTest extends TestCase
 
     private static function fixturePath(): string
     {
-        return \sys_get_temp_dir() . "/aerys_root_test_fixture";
+        return \sys_get_temp_dir() . "/amp_http_static_content_test_fixture";
     }
 
     /**
@@ -92,6 +92,15 @@ class DocumentRootTest extends TestCase
         return $server;
     }
 
+    public function createUri(string $path): PsrUri
+    {
+        $uri = $this->createMock(PsrUri::class);
+        $uri->method('getPath')
+            ->willReturn($path);
+
+        return $uri;
+    }
+
     /**
      * @dataProvider provideBadDocRoots
      */
@@ -125,7 +134,7 @@ class DocumentRootTest extends TestCase
             ["/index.htm", "test"],
             ["/dir/../dir//..//././index.htm", "test"],
         ] as list($path, $contents)) {
-            $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString($path));
+            $request = new Request($this->createMock(Client::class), "GET", $this->createUri($path));
 
             $promise = $root->handleRequest($request);
             /** @var \Amp\Http\Server\Response $response */
@@ -146,7 +155,7 @@ class DocumentRootTest extends TestCase
      */
     public function testPathsOnRelativePathAboveRoot(string $relativePath, DocumentRoot $root): void
     {
-        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString($relativePath));
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri($relativePath));
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -169,7 +178,7 @@ class DocumentRootTest extends TestCase
      */
     public function testUnavailablePathsOnRelativePathAboveRoot(string $relativePath, DocumentRoot $root): void
     {
-        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString($relativePath));
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri($relativePath));
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -190,7 +199,7 @@ class DocumentRootTest extends TestCase
      */
     public function testCachedResponse(DocumentRoot $root): void
     {
-        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"));
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"));
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -210,7 +219,7 @@ class DocumentRootTest extends TestCase
 
         $root->onStart($server);
 
-        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "cache-control" => "no-cache",
         ]);
 
@@ -230,7 +239,7 @@ class DocumentRootTest extends TestCase
      */
     public function testDebugModeIgnoresCacheIfPragmaHeaderIndicatesToDoSo(DocumentRoot $root): DocumentRoot
     {
-        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "cache-control" => "no-cache",
         ]);
 
@@ -248,7 +257,7 @@ class DocumentRootTest extends TestCase
     public function testOptionsHeader(): void
     {
         $root = new DocumentRoot(self::fixturePath());
-        $request = new Request($this->createMock(Client::class), "OPTIONS", Uri\Http::createFromString("/"));
+        $request = new Request($this->createMock(Client::class), "OPTIONS", $this->createUri("/"));
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
@@ -269,7 +278,7 @@ class DocumentRootTest extends TestCase
 
         $diskPath = \realpath(self::fixturePath())."/index.htm";
 
-        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "if-match" => "any value",
         ]);
 
@@ -287,7 +296,7 @@ class DocumentRootTest extends TestCase
         $diskPath = \realpath(self::fixturePath())."/index.htm";
         $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
 
-        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "if-match" => $etag,
             "if-modified-since" => "2.1.1970",
         ]);
@@ -308,7 +317,7 @@ class DocumentRootTest extends TestCase
         $diskPath = \realpath(self::fixturePath())."/index.htm";
         $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
 
-        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "if-range" => "foo",
         ]);
 
@@ -332,7 +341,7 @@ class DocumentRootTest extends TestCase
         $diskPath = \realpath(self::fixturePath())."/index.htm";
         $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
 
-        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "if-range" => $etag,
             "range" => "bytes=7-10",
         ]);
@@ -354,7 +363,7 @@ class DocumentRootTest extends TestCase
             $root = new DocumentRoot(self::fixturePath());
             $root->setUseEtagInode(false);
 
-            $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/index.htm"), [
+            $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
                 "if-range" => "+1 second",
                 "range" => "bytes=$range",
             ]);
@@ -409,7 +418,7 @@ PART;
      */
     public function testMimetypeParsing(DocumentRoot $root): void
     {
-        $request = new Request($this->createMock(Client::class), "GET", Uri\Http::createFromString("/svg.svg"));
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/svg.svg"));
 
         $promise = $root->handleRequest($request);
         /** @var \Amp\Http\Server\Response $response */
