@@ -76,6 +76,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
     private $bufferedFileCount = 0;
     private $bufferedFileLimit = 50;
     private $bufferedFileSizeLimit = 524288;
+    private $stripFromPath;
 
     /**
      * @param string      $root Document root
@@ -83,7 +84,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
      *
      * @throws \Error On invalid root path
      */
-    public function __construct(string $root, File\Driver $filesystem = null)
+    public function __construct(string $root, File\Driver $filesystem = null, string $stripFromPath = '')
     {
         $root = \str_replace("\\", "/", $root);
         if (!(\is_readable($root) && \is_dir($root))) {
@@ -95,7 +96,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         if (\strncmp($root, "phar://", 7) !== 0) {
             $root = \realpath($root);
         }
-
+        $this->stripFromPath = $stripFromPath;
         $this->root = \rtrim($root, "/");
         $this->filesystem = $filesystem ?: File\filesystem();
         $this->multipartBoundary = \strtr(\base64_encode(\random_bytes(16)), '+/', '-_');
@@ -151,7 +152,9 @@ final class DocumentRoot implements RequestHandler, ServerObserver
      */
     public function handleRequest(Request $request): Promise
     {
-        $path = removeDotPathSegments($request->getUri()->getPath());
+        $path = $request->getUri()->getPath();
+        $path = ($stripped = substr($path, strlen($this->stripFromPath))) === $this->stripFromPath ? $stripped : $path;
+        $path = removeDotPathSegments($path);
 
         return new Coroutine(
             ($fileInfo = $this->fetchCachedStat($path, $request))
