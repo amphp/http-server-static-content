@@ -11,7 +11,7 @@ final class ByteRange
 {
     use Struct;
 
-    public $ranges;
-    public $boundary;
-    public $contentType;
+    public array $ranges;
+    public string $boundary;
+    public string $contentType;
 }

@@ -2,7 +2,7 @@
 
 namespace Amp\Http\Server\StaticContent\Test;
 
-use Amp\ByteStream\Payload;
+use Amp\ByteStream;
 use Amp\Http\Server\Server;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\PHPUnit\AsyncTestCase;
@@ -12,16 +12,16 @@ use Psr\Log\NullLogger;
 class FuzzingTest extends AsyncTestCase
 {
     /** @var Socket\Server */
-    private static $socket;
+    private static Socket\Server $socket;
 
     /** @var string */
-    private static $documentRoot;
+    private static string $documentRoot;
 
     public static function setUpBeforeClass(): void
     {
         parent::setUpBeforeClass();
 
-        self::$socket = Socket\listen("127.0.0.1:0");
+        self::$socket = Socket\Server::listen("127.0.0.1:0");
         self::$documentRoot = \sys_get_temp_dir() . '/amphp-http-server-document-root-' . \bin2hex(\random_bytes(4));
 
         \mkdir(self::$documentRoot);
@@ -35,31 +35,31 @@ class FuzzingTest extends AsyncTestCase
             \rmdir(self::$documentRoot);
         }
 
-        self::$socket = null;
+        self::$socket->close();
     }
 
 
     /** @dataProvider provideAttacks */
-    public function testDocumentRootBreakout(string $input): \Generator
+    public function testDocumentRootBreakout(string $input): void
     {
         $server = new Server([self::$socket], new DocumentRoot(self::$documentRoot), new NullLogger);
-        yield $server->start();
+        $server->start();
 
-        /** @var Socket\ResourceSocket $client */
-        $client = yield Socket\connect((string) self::$socket->getAddress());
-        yield $client->write("GET {$input} HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n");
+        $client = Socket\connect((string) self::$socket->getAddress());
+        $client->write("GET {$input} HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n");
 
-        $response = yield (new Payload($client))->buffer();
-        $this->assertRegExp('(
+        $response = ByteStream\buffer($client);
+        $this->assertMatchesRegularExpression('(
             HTTP/1\.0\ 400\ Bad\ Request:\ (?:
                 invalid\ request\ line|
+                invalid\ target|
                 authority-form\ only\ valid\ for\ CONNECT\ requests
             )|
             HTTP/1.1\ 404\ Not\ Found|
             ^$
         )x', $response);
 
-        yield $server->stop();
+        $server->stop();
     }
 
     public function provideAttacks(): array

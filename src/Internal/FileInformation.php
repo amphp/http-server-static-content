@@ -11,24 +11,17 @@ final class FileInformation
 {
     use Struct;
 
-    /** @var bool */
-    public $exists = false;
+    public bool $exists = false;
 
-    /** @var string */
-    public $path;
+    public string $path;
 
-    /** @var int|null */
-    public $size;
+    public ?int $size = null;
 
-    /** @var int|null */
-    public $mtime;
+    public ?int $mtime = null;
 
-    /** @var int|null */
-    public $inode;
+    public ?int $inode = null;
 
-    /** @var string|null */
-    public $buffer;
+    public ?string $buffer = null;
 
-    /** @var string|null */
-    public $etag;
+    public ?string $etag = null;
 }

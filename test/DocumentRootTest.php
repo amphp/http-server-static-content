@@ -2,6 +2,8 @@
 
 namespace Amp\Http\Server\StaticContent\Test;
 
+use Amp\File\Driver;
+use Amp\File\Filesystem;
 use Amp\Http\Server\Driver\Client;
 use Amp\Http\Server\Options;
 use Amp\Http\Server\Request;
@@ -9,21 +11,30 @@ use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Server;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Status;
-use Amp\Loop;
-use Amp\Promise;
+use Amp\PHPUnit\AsyncTestCase;
 use Amp\Socket;
-use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\UriInterface as PsrUri;
 use Psr\Log\LoggerInterface as PsrLogger;
 
-class DocumentRootTest extends TestCase
+class DocumentRootTest extends AsyncTestCase
 {
-    /** @var \Amp\Loop\Driver */
-    private static $loop;
+    private Server $server;
+
+    private DocumentRoot $root;
 
     private static function fixturePath(): string
     {
         return \sys_get_temp_dir() . "/amp_http_static_content_test_fixture";
+    }
+
+    public function setUp(): void
+    {
+        parent::setUp();
+        $this->root = new DocumentRoot(self::fixturePath());
+
+        $this->server = $this->createServer((new Options)->withDebugMode());
+
+        $this->root->onStart($this->server);
     }
 
     /**
@@ -31,8 +42,6 @@ class DocumentRootTest extends TestCase
      */
     public static function setUpBeforeClass(): void
     {
-        self::$loop = Loop::get();
-
         $fixtureDir = self::fixturePath();
         if (!\file_exists($fixtureDir) && !\mkdir($fixtureDir)) {
             throw new \RuntimeException(
@@ -69,18 +78,9 @@ class DocumentRootTest extends TestCase
         }
     }
 
-    /**
-     * Restore original loop driver instance as data providers require the same driver instance to be active as when
-     * the data was generated.
-     */
-    public function setUp(): void
-    {
-        Loop::set(self::$loop);
-    }
-
     public function createServer(Options $options = null): Server
     {
-        $socket = Socket\listen('127.0.0.1:0');
+        $socket = Socket\Server::listen('127.0.0.1:0');
 
         $server = new Server(
             [$socket],
@@ -109,7 +109,7 @@ class DocumentRootTest extends TestCase
         $this->expectException(\Error::class);
         $this->expectExceptionMessage('Document root requires a readable directory');
 
-        $filesystem = $this->createMock('Amp\File\Driver');
+        $filesystem = new Filesystem($this->createMock(Driver::class));
         $root = new DocumentRoot($badPath, $filesystem);
     }
 
@@ -121,14 +121,8 @@ class DocumentRootTest extends TestCase
         ];
     }
 
-    public function testBasicFileResponse(): DocumentRoot
+    public function testBasicFileResponse(): void
     {
-        $root = new DocumentRoot(self::fixturePath());
-
-        $server = $this->createServer((new Options)->withDebugMode());
-
-        $root->onStart($server);
-
         foreach ([
             ["/", "test"],
             ["/index.htm", "test"],
@@ -136,32 +130,25 @@ class DocumentRootTest extends TestCase
         ] as list($path, $contents)) {
             $request = new Request($this->createMock(Client::class), "GET", $this->createUri($path));
 
-            $promise = $root->handleRequest($request);
-            /** @var \Amp\Http\Server\Response $response */
-            $response = Promise\wait($promise);
+            $response = $this->root->handleRequest($request);
 
             $this->assertSame("text/html; charset=utf-8", $response->getHeader("content-type"));
             $stream = $response->getBody();
-            $this->assertSame($contents, Promise\wait($stream->read()));
+            $this->assertSame($contents, $stream->read());
         }
-
-        // Return so we can test cached responses in the next case
-        return $root;
     }
 
     /**
      * @depends testBasicFileResponse
      * @dataProvider provideRelativePathsAboveRoot
      */
-    public function testPathsOnRelativePathAboveRoot(string $relativePath, DocumentRoot $root): void
+    public function testPathsOnRelativePathAboveRoot(string $relativePath): void
     {
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri($relativePath));
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $this->root->handleRequest($request);
         $stream = $response->getBody();
-        $this->assertSame("test", Promise\wait($stream->read()));
+        $this->assertSame("test", $stream->read());
     }
 
     public function provideRelativePathsAboveRoot(): array
@@ -176,13 +163,11 @@ class DocumentRootTest extends TestCase
      * @depends testBasicFileResponse
      * @dataProvider provideUnavailablePathsAboveRoot
      */
-    public function testUnavailablePathsOnRelativePathAboveRoot(string $relativePath, DocumentRoot $root): void
+    public function testUnavailablePathsOnRelativePathAboveRoot(string $relativePath): void
     {
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri($relativePath));
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $this->root->handleRequest($request);
         $this->assertSame(Status::NOT_FOUND, $response->getStatus());
     }
 
@@ -197,61 +182,51 @@ class DocumentRootTest extends TestCase
     /**
      * @depends testBasicFileResponse
      */
-    public function testCachedResponse(DocumentRoot $root): void
+    public function testCachedResponse(): void
     {
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"));
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $this->root->handleRequest($request);
 
         $this->assertSame("text/html; charset=utf-8", $response->getHeader("content-type"));
         $stream = $response->getBody();
-        $this->assertSame("test", Promise\wait($stream->read()));
+        $this->assertSame("test", $stream->read());
     }
 
     /**
      * @depends testBasicFileResponse
      */
-    public function testDebugModeIgnoresCacheIfCacheControlHeaderIndicatesToDoSo(DocumentRoot $root): DocumentRoot
+    public function testDebugModeIgnoresCacheIfCacheControlHeaderIndicatesToDoSo(): void
     {
         $server = $this->createServer((new Options)->withDebugMode());
 
-        $root->onStart($server);
+        $this->root->onStart($server);
 
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "cache-control" => "no-cache",
         ]);
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $this->root->handleRequest($request);
 
         $this->assertSame("text/html; charset=utf-8", $response->getHeader("content-type"));
         $stream = $response->getBody();
-        $this->assertSame("test", Promise\wait($stream->read()));
-
-        return $root;
+        $this->assertSame("test", $stream->read());
     }
 
     /**
      * @depends testDebugModeIgnoresCacheIfCacheControlHeaderIndicatesToDoSo
      */
-    public function testDebugModeIgnoresCacheIfPragmaHeaderIndicatesToDoSo(DocumentRoot $root): DocumentRoot
+    public function testDebugModeIgnoresCacheIfPragmaHeaderIndicatesToDoSo(): void
     {
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "cache-control" => "no-cache",
         ]);
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $this->root->handleRequest($request);
 
         $this->assertSame("text/html; charset=utf-8", $response->getHeader("content-type"));
         $stream = $response->getBody();
-        $this->assertSame("test", Promise\wait($stream->read()));
-
-        return $root;
+        $this->assertSame("test", $stream->read());
     }
 
     public function testOptionsHeader(): void
@@ -259,9 +234,7 @@ class DocumentRootTest extends TestCase
         $root = new DocumentRoot(self::fixturePath());
         $request = new Request($this->createMock(Client::class), "OPTIONS", $this->createUri("/"));
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $root->handleRequest($request);
 
         $this->assertSame("GET, HEAD, OPTIONS", $response->getHeader('allow'));
         $this->assertSame("bytes", $response->getHeader('accept-ranges'));
@@ -282,9 +255,7 @@ class DocumentRootTest extends TestCase
             "if-match" => "any value",
         ]);
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $root->handleRequest($request);
 
         $this->assertSame(Status::PRECONDITION_FAILED, $response->getStatus());
     }
@@ -301,9 +272,7 @@ class DocumentRootTest extends TestCase
             "if-modified-since" => "2.1.1970",
         ]);
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $root->handleRequest($request);
 
         $this->assertSame(Status::NOT_MODIFIED, $response->getStatus());
         $this->assertSame(\gmdate("D, d M Y H:i:s", \filemtime($diskPath))." GMT", $response->getHeader("last-modified"));
@@ -321,12 +290,10 @@ class DocumentRootTest extends TestCase
             "if-range" => "foo",
         ]);
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $root->handleRequest($request);
 
         $stream = $response->getBody();
-        $this->assertSame("test", Promise\wait($stream->read()));
+        $this->assertSame("test", $stream->read());
     }
 
     public function testBadRange(): void
@@ -346,9 +313,7 @@ class DocumentRootTest extends TestCase
             "range" => "bytes=7-10",
         ]);
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $root->handleRequest($request);
 
         $this->assertSame(Status::RANGE_NOT_SATISFIABLE, $response->getStatus());
         $this->assertSame("*/4", $response->getHeader("content-range"));
@@ -359,40 +324,39 @@ class DocumentRootTest extends TestCase
      */
     public function testValidRange(string $range, callable $validator): void
     {
-        Loop::run(function () use ($range, $validator) {
-            $root = new DocumentRoot(self::fixturePath());
-            $root->setUseEtagInode(false);
+        $this->ignoreLoopWatchers();
 
-            $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
-                "if-range" => "+1 second",
-                "range" => "bytes=$range",
-            ]);
+        $root = new DocumentRoot(self::fixturePath());
+        $root->setUseEtagInode(false);
 
-            /** @var \Amp\Http\Server\Response $response */
-            $response = yield $root->handleRequest($request);
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
+            "if-range" => "+1 second",
+            "range" => "bytes=$range",
+        ]);
 
-            $this->assertSame(Status::PARTIAL_CONTENT, $response->getStatus());
+        $response = $root->handleRequest($request);
 
-            $body = "";
-            while (null !== $chunk = yield $response->getBody()->read()) {
-                $body .= $chunk;
-            }
+        $this->assertSame(Status::PARTIAL_CONTENT, $response->getStatus());
 
-            $validator($response->getHeaders(), $body);
+        $body = "";
+        while (null !== $chunk = $response->getBody()->read()) {
+            $body .= $chunk;
+        }
 
-            Loop::stop();
-        });
+        $validator($response->getHeaders(), $body);
+
+        unset($response);
     }
 
     public function provideValidRanges(): array
     {
         return [
-            ["1-2", function ($headers, $body) {
+            ["1-2", function ($headers, $body): void {
                 $this->assertEquals(2, $headers["content-length"][0]);
                 $this->assertEquals("bytes 1-2/4", $headers["content-range"][0]);
                 $this->assertEquals("es", $body);
             }],
-            ["-0,1-2,2-", function ($headers, $body) {
+            ["-0,1-2,2-", function ($headers, $body): void {
                 $start = "multipart/byteranges; boundary=";
                 $this->assertEquals($start, \substr($headers["content-type"][0], 0, \strlen($start)));
                 $boundary = \substr($headers["content-type"][0], \strlen($start));
@@ -416,16 +380,14 @@ PART;
     /**
      * @depends testBasicFileResponse
      */
-    public function testMimetypeParsing(DocumentRoot $root): void
+    public function testMimetypeParsing(): void
     {
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/svg.svg"));
 
-        $promise = $root->handleRequest($request);
-        /** @var \Amp\Http\Server\Response $response */
-        $response = Promise\wait($promise);
+        $response = $this->root->handleRequest($request);
 
         $this->assertSame("image/svg+xml", $response->getHeader("content-type"));
         $stream = $response->getBody();
-        $this->assertSame("<svg></svg>", Promise\wait($stream->read()));
+        $this->assertSame("<svg></svg>", $stream->read());
     }
 }
