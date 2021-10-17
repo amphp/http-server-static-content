@@ -324,8 +324,6 @@ class DocumentRootTest extends AsyncTestCase
      */
     public function testValidRange(string $range, callable $validator): void
     {
-        $this->ignoreLoopWatchers();
-
         $root = new DocumentRoot(self::fixturePath());
         $root->setUseEtagInode(false);
 

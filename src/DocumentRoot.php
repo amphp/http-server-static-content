@@ -2,7 +2,6 @@
 
 namespace Amp\Http\Server\StaticContent;
 
-use Amp\AsyncGenerator;
 use Amp\ByteStream\InMemoryStream;
 use Amp\ByteStream\InputStream;
 use Amp\ByteStream\PipelineStream;
@@ -15,8 +14,8 @@ use Amp\Http\Server\Response;
 use Amp\Http\Server\Server;
 use Amp\Http\Server\ServerObserver;
 use Amp\Http\Status;
-use Amp\Loop;
-use Amp\Promise;
+use Amp\Pipeline\AsyncGenerator;
+use Revolt\EventLoop;
 use function Amp\File\filesystem;
 use function Amp\Http\formatDateHeader;
 
@@ -698,8 +697,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->debug = $server->getOptions()->isInDebugMode();
 
         $this->now = \time();
-        $this->watcher = Loop::repeat(1000, \Closure::fromCallable([$this, "clearExpiredCacheEntries"]));
-        Loop::unreference($this->watcher);
+        $this->watcher = EventLoop::repeat(1, \Closure::fromCallable([$this, "clearExpiredCacheEntries"]));
+        EventLoop::unreference($this->watcher);
 
         if ($this->fallback instanceof ServerObserver) {
             $this->fallback->onStart($server);
@@ -715,7 +714,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->running = false;
 
         if ($this->watcher) {
-            Loop::cancel($this->watcher);
+            EventLoop::cancel($this->watcher);
         }
 
         if ($this->fallback instanceof ServerObserver) {
