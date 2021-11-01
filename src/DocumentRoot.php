@@ -261,6 +261,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $dirPath = \rtrim($dirPath, "/") . "/";
         foreach ($this->indexes as $indexFile) {
             $coalescedPath = $dirPath . $indexFile;
+            File\StatCache::clear($coalescedPath);
             if (yield $this->filesystem->isfile($coalescedPath)) {
                 $stat = yield $this->filesystem->stat($coalescedPath);
                 return [$coalescedPath, $stat];

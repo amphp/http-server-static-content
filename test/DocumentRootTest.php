@@ -44,16 +44,6 @@ class DocumentRootTest extends TestCase
                 "Failed creating temporary test fixture directory"
             );
         }
-        if (!\file_put_contents($fixtureDir . "/index.htm", "test")) {
-            throw new \RuntimeException(
-                "Failed creating temporary test fixture file"
-            );
-        }
-        if (!\file_put_contents($fixtureDir . "/svg.svg", "<svg></svg>")) {
-            throw new \RuntimeException(
-                "Failed creating temporary test fixture file"
-            );
-        }
     }
 
     public static function tearDownAfterClass(): void
@@ -75,6 +65,18 @@ class DocumentRootTest extends TestCase
      */
     public function setUp(): void
     {
+        $fixtureDir = self::fixturePath();
+        if (!\file_put_contents($fixtureDir . "/index.htm", "test")) {
+            throw new \RuntimeException(
+                "Failed creating temporary test fixture file"
+            );
+        }
+        if (!\file_put_contents($fixtureDir . "/svg.svg", "<svg></svg>")) {
+            throw new \RuntimeException(
+                "Failed creating temporary test fixture file"
+            );
+        }
+
         Loop::set(self::$loop);
     }
 
@@ -427,5 +429,36 @@ PART;
         $this->assertSame("image/svg+xml", $response->getHeader("content-type"));
         $stream = $response->getBody();
         $this->assertSame("<svg></svg>", Promise\wait($stream->read()));
+    }
+
+    public function testClearFileCacheForIndexesIfRequestUriTheRoot(): void
+    {
+        $file = self::fixturePath() . '/index.htm';
+        $stat = \stat($file);
+        $etag = \md5("{$file}{$stat['mtime']}{$stat['size']}{$stat['ino']}");
+
+        $root = new DocumentRoot(self::fixturePath());
+        $server = $this->createServer((new Options));
+        $root->onStart($server);
+
+        file_put_contents($file, 'test1');
+
+        $request = new Request(
+            $this->createMock(Client::class),
+            "GET",
+            $this->createUri("/"),
+            [
+                'if-none-match' => $etag,
+            ]
+        );
+
+        $promise = $root->handleRequest($request);
+        /** @var \Amp\Http\Server\Response $response */
+        $response = Promise\wait($promise);
+
+        $this->assertEquals(200, $response->getStatus());
+        $this->assertSame("text/html; charset=utf-8", $response->getHeader("content-type"));
+        $stream = $response->getBody();
+        $this->assertSame("test1", Promise\wait($stream->read()));
     }
 }
