@@ -550,7 +550,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
         while ($bytesRemaining) {
             $toBuffer = $bytesRemaining > self::READ_CHUNK_SIZE ? self::READ_CHUNK_SIZE : $bytesRemaining;
-            $chunk = $handle->read($toBuffer);
+            $chunk = $handle->read(length: $toBuffer);
             $bytesRemaining -= \strlen($chunk);
             yield $chunk;
         }
