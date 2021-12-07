@@ -80,11 +80,11 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
     /**
      * @param string      $root Document root
-     * @param File\Driver $filesystem Optional filesystem driver
+     * @param File\Filesystem $filesystem Optional filesystem driver
      *
      * @throws \Error On invalid root path
      */
-    public function __construct(string $root, File\Driver $filesystem = null)
+    public function __construct(string $root, File\Filesystem $filesystem = null)
     {
         $root = \str_replace("\\", "/", $root);
         if (!(\is_readable($root) && \is_dir($root))) {
@@ -134,7 +134,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
      *
      * @throws \Error If the server has started.
      */
-    public function setFallback(RequestHandler $requestHandler): void
+    public function setFallback(RequesitHandler $requestHandler): void
     {
         if ($this->running) {
             throw new \Error("Cannot add fallback request handler after the server has started");
