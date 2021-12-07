@@ -7,6 +7,7 @@ use Amp\ByteStream\InputStream;
 use Amp\ByteStream\IteratorStream;
 use Amp\Coroutine;
 use Amp\File;
+use Amp\File\File as FileHandle;
 use Amp\Http\Server\ErrorHandler;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\RequestHandler;
@@ -227,12 +228,11 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $fileInfo->exists = false;
         $fileInfo->path = $path;
 
-        File\StatCache::clear($path);
-        if (!$stat = yield $this->filesystem->stat($path)) {
+        if (!$stat = yield $this->filesystem->getStatus($path)) {
             return $fileInfo;
         }
 
-        if (yield $this->filesystem->isdir($path)) {
+        if (yield $this->filesystem->isDirectory($path)) {
             if ($indexPathArr = yield from $this->coalesceIndexPath($path)) {
                 list($fileInfo->path, $stat) = $indexPathArr;
             } else {
@@ -248,7 +248,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $fileInfo->etag = \md5("{$fileInfo->path}{$fileInfo->mtime}{$fileInfo->size}{$inode}");
 
         if ($this->shouldBufferContent($fileInfo)) {
-            $fileInfo->buffer = yield $this->filesystem->get($fileInfo->path);
+            $fileInfo->buffer = yield $this->filesystem->read($fileInfo->path);
             $fileInfo->size = \strlen($fileInfo->buffer); // there's a slight chance for the size to change, be safe
             $this->bufferedFileCount++;
         }
@@ -261,8 +261,8 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $dirPath = \rtrim($dirPath, "/") . "/";
         foreach ($this->indexes as $indexFile) {
             $coalescedPath = $dirPath . $indexFile;
-            if (yield $this->filesystem->isfile($coalescedPath)) {
-                $stat = yield $this->filesystem->stat($coalescedPath);
+            if (yield $this->filesystem->isFile($coalescedPath)) {
+                $stat = yield $this->filesystem->getStatus($coalescedPath);
                 return [$coalescedPath, $stat];
             }
         }
@@ -390,9 +390,9 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
         // Don't use cached size if we don't have buffered file contents,
         // otherwise we get truncated files during development.
-        $headers["Content-Length"] = (string) yield $this->filesystem->size($fileInfo->path);
+        $headers["Content-Length"] = (string) yield $this->filesystem->getSize($fileInfo->path);
 
-        $handle = yield $this->filesystem->open($fileInfo->path, "r");
+        $handle = yield $this->filesystem->openFile($fileInfo->path, "r");
 
         $response = new Response(Status::OK, $headers, $handle);
         $response->onDispose([$handle, "close"]);
@@ -518,7 +518,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
             $headers["Content-Type"] = $mime;
         }
 
-        $handle = yield $this->filesystem->open($fileInfo->path, "r");
+        $handle = yield $this->filesystem->openFile($fileInfo->path, "r");
 
         if (empty($range->ranges[1])) {
             list($startPos, $endPos) = $range->ranges[0];
@@ -532,7 +532,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         return $response;
     }
 
-    private function sendSingleRange(File\Handle $handle, int $startPos, int $endPos): InputStream
+    private function sendSingleRange(FileHandle $handle, int $startPos, int $endPos): InputStream
     {
         $iterator = new Producer(function (callable $emit) use ($handle, $startPos, $endPos) {
             return $this->readRangeFromHandle($handle, $emit, $startPos, $endPos);
@@ -562,7 +562,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         return new IteratorStream($iterator);
     }
 
-    private function readRangeFromHandle(File\Handle $handle, callable $emit, int $startPos, int $endPos): \Generator
+    private function readRangeFromHandle(FileHandle $handle, callable $emit, int $startPos, int $endPos): \Generator
     {
         $bytesRemaining = $endPos - $startPos + 1;
         yield $handle->seek($startPos);

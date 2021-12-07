@@ -3,15 +3,16 @@
 namespace Amp\Http\Server\StaticContent\Test;
 
 use Amp\ByteStream\Payload;
-use Amp\Http\Server\Server;
+use Amp\Http\Server\HttpServer;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Socket;
+use Amp\Socket\Server;
 use Psr\Log\NullLogger;
 
 class FuzzingTest extends AsyncTestCase
 {
-    /** @var Socket\Server */
+    /** @var Server */
     private static $socket;
 
     /** @var string */
@@ -21,7 +22,7 @@ class FuzzingTest extends AsyncTestCase
     {
         parent::setUpBeforeClass();
 
-        self::$socket = Socket\listen("127.0.0.1:0");
+        self::$socket = Server::listen("127.0.0.1:0");
         self::$documentRoot = \sys_get_temp_dir() . '/amphp-http-server-document-root-' . \bin2hex(\random_bytes(4));
 
         \mkdir(self::$documentRoot);
@@ -42,7 +43,7 @@ class FuzzingTest extends AsyncTestCase
     /** @dataProvider provideAttacks */
     public function testDocumentRootBreakout(string $input): \Generator
     {
-        $server = new Server([self::$socket], new DocumentRoot(self::$documentRoot), new NullLogger);
+        $server = new HttpServer([self::$socket], new DocumentRoot(self::$documentRoot), new NullLogger);
         yield $server->start();
 
         /** @var Socket\ResourceSocket $client */
@@ -75,10 +76,10 @@ class FuzzingTest extends AsyncTestCase
                 continue;
             }
 
-            $cases[] = [$line];
+            $cases[$line] = [$line];
 
             if ($line[0] !== '/') {
-                $cases[] = ['/' . $line];
+                $cases['/' . $line] = ['/' . $line];
             }
         }
 
