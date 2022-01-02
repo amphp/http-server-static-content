@@ -134,7 +134,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
      *
      * @throws \Error If the server has started.
      */
-    public function setFallback(RequesitHandler $requestHandler): void
+    public function setFallback(RequestHandler $requestHandler): void
     {
         if ($this->running) {
             throw new \Error("Cannot add fallback request handler after the server has started");
