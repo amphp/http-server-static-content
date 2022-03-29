@@ -2,24 +2,23 @@
 
 namespace Amp\Http\Server\StaticContent;
 
-use Amp\ByteStream\InMemoryStream;
-use Amp\ByteStream\InputStream;
-use Amp\ByteStream\PipelineStream;
+use Amp\ByteStream\ReadableBuffer;
+use Amp\ByteStream\ReadableIterableStream;
+use Amp\ByteStream\ReadableStream;
 use Amp\File\File;
 use Amp\File\Filesystem;
 use Amp\Http\Server\ErrorHandler;
+use Amp\Http\Server\HttpServer;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Response;
-use Amp\Http\Server\Server;
-use Amp\Http\Server\ServerObserver;
 use Amp\Http\Status;
-use Amp\Pipeline\AsyncGenerator;
+use Amp\Pipeline\Pipeline;
 use Revolt\EventLoop;
 use function Amp\File\filesystem;
 use function Amp\Http\formatDateHeader;
 
-final class DocumentRoot implements RequestHandler, ServerObserver
+final class DocumentRoot implements RequestHandler
 {
     /** @var string Default mime file path. */
     public const DEFAULT_MIME_TYPE_FILE = __DIR__ . "/../resources/mime";
@@ -64,13 +63,14 @@ final class DocumentRoot implements RequestHandler, ServerObserver
     private int $bufferedFileSizeLimit = 524288;
 
     /**
-     * @param string     $root Document root
-     * @param Filesystem $filesystem Optional filesystem driver
-     *
-     * @throws \Error On invalid root path
+     * @param string $root Document root
+     * @param Filesystem|null $filesystem Optional filesystem driver
      */
-    public function __construct(string $root, ?Filesystem $filesystem = null)
+    public function __construct(HttpServer $httpServer, string $root, ?Filesystem $filesystem = null)
     {
+        $httpServer->onStart($this->onStart(...));
+        $httpServer->onStop($this->onStop(...));
+
         $root = \str_replace("\\", "/", $root);
         if (!(\is_readable($root) && \is_dir($root))) {
             throw new \Error(
@@ -369,7 +369,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         if ($fileInfo->buffer !== null) {
             $headers["Content-Length"] = (string) $fileInfo->size;
 
-            return new Response(Status::OK, $headers, new InMemoryStream($fileInfo->buffer));
+            return new Response(Status::OK, $headers, new ReadableBuffer($fileInfo->buffer));
         }
 
         // Don't use cached size if we don't have buffered file contents,
@@ -379,7 +379,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $handle = $this->filesystem->openFile($fileInfo->path, "r");
 
         $response = new Response(Status::OK, $headers, $handle);
-        $response->onDispose([$handle, "close"]);
+        $response->onDispose($handle->close(...));
         return $response;
     }
 
@@ -512,19 +512,19 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         }
 
         $response = new Response(Status::PARTIAL_CONTENT, $headers, $stream);
-        $response->onDispose([$handle, "close"]);
+        $response->onDispose($handle->close(...));
         return $response;
     }
 
-    private function sendSingleRange(File $handle, int $startPos, int $endPos): InputStream
+    private function sendSingleRange(File $handle, int $startPos, int $endPos): ReadableStream
     {
-        $generator = new AsyncGenerator(fn() => $this->readRangeFromHandle($handle, $startPos, $endPos));
-        return new PipelineStream($generator);
+        $generator = Pipeline::fromIterable(fn() => $this->readRangeFromHandle($handle, $startPos, $endPos));
+        return new ReadableIterableStream($generator->getIterator());
     }
 
-    private function sendMultiRange($handle, Internal\FileInformation $fileInfo, Internal\ByteRange $range): InputStream
+    private function sendMultiRange($handle, Internal\FileInformation $fileInfo, Internal\ByteRange $range): ReadableStream
     {
-        $generator = new AsyncGenerator(function () use ($handle, $range, $fileInfo) {
+        $generator = Pipeline::fromIterable(function () use ($handle, $range, $fileInfo) {
             foreach ($range->ranges as list($startPos, $endPos)) {
                 yield \sprintf(
                     "--%s\r\nContent-Type: %s\r\nContent-Range: bytes %d-%d/%d\r\n\r\n",
@@ -540,7 +540,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
             yield "--{$range->boundary}--";
         });
 
-        return new PipelineStream($generator);
+        return new ReadableIterableStream($generator->getIterator());
     }
 
     private function readRangeFromHandle(File $handle, int $startPos, int $endPos): \Generator
@@ -684,7 +684,7 @@ final class DocumentRoot implements RequestHandler, ServerObserver
         $this->bufferedFileSizeLimit = $bytes;
     }
 
-    public function onStart(Server $server): void
+    public function onStart(HttpServer $server): void
     {
         $this->running = true;
 
@@ -694,18 +694,14 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
         $this->errorHandler = $server->getErrorHandler();
 
-        $this->debug = $server->getOptions()->isInDebugMode();
+        $this->debug = \ini_get('zend.assertions') === '1';
 
         $this->now = \time();
-        $this->watcher = EventLoop::repeat(1, \Closure::fromCallable([$this, "clearExpiredCacheEntries"]));
+        $this->watcher = EventLoop::repeat(1, $this->clearExpiredCacheEntries(...));
         EventLoop::unreference($this->watcher);
-
-        if ($this->fallback instanceof ServerObserver) {
-            $this->fallback->onStart($server);
-        }
     }
 
-    public function onStop(Server $server): void
+    public function onStop(): void
     {
         $this->cache = [];
         $this->cacheTimeouts = [];
@@ -715,10 +711,6 @@ final class DocumentRoot implements RequestHandler, ServerObserver
 
         if ($this->watcher) {
             EventLoop::cancel($this->watcher);
-        }
-
-        if ($this->fallback instanceof ServerObserver) {
-            $this->fallback->onStop($server);
         }
     }
 }

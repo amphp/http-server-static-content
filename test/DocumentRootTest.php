@@ -2,13 +2,14 @@
 
 namespace Amp\Http\Server\StaticContent\Test;
 
-use Amp\File\Driver;
 use Amp\File\Filesystem;
+use Amp\File\FilesystemDriver;
+use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Driver\Client;
+use Amp\Http\Server\HttpServer;
+use Amp\Http\Server\HttpSocketServer;
 use Amp\Http\Server\Options;
 use Amp\Http\Server\Request;
-use Amp\Http\Server\RequestHandler;
-use Amp\Http\Server\Server;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Status;
 use Amp\PHPUnit\AsyncTestCase;
@@ -18,7 +19,7 @@ use Psr\Log\LoggerInterface as PsrLogger;
 
 class DocumentRootTest extends AsyncTestCase
 {
-    private Server $server;
+    private HttpServer $server;
 
     private DocumentRoot $root;
 
@@ -30,10 +31,8 @@ class DocumentRootTest extends AsyncTestCase
     public function setUp(): void
     {
         parent::setUp();
-        $this->root = new DocumentRoot(self::fixturePath());
-
-        $this->server = $this->createServer((new Options)->withDebugMode());
-
+        $this->server = $this->createServer();
+        $this->root = new DocumentRoot($this->server, self::fixturePath());
         $this->root->onStart($this->server);
     }
 
@@ -78,16 +77,11 @@ class DocumentRootTest extends AsyncTestCase
         }
     }
 
-    public function createServer(Options $options = null): Server
+    public function createServer(): HttpServer
     {
-        $socket = Socket\Server::listen('127.0.0.1:0');
-
-        $server = new Server(
-            [$socket],
-            $this->createMock(RequestHandler::class),
-            $this->createMock(PsrLogger::class),
-            $options
-        );
+        $server = $this->createMock(HttpServer::class);
+        $server->method('getErrorHandler')
+            ->willReturn(new DefaultErrorHandler());
 
         return $server;
     }
@@ -109,8 +103,8 @@ class DocumentRootTest extends AsyncTestCase
         $this->expectException(\Error::class);
         $this->expectExceptionMessage('Document root requires a readable directory');
 
-        $filesystem = new Filesystem($this->createMock(Driver::class));
-        $root = new DocumentRoot($badPath, $filesystem);
+        $filesystem = new Filesystem($this->createMock(FilesystemDriver::class));
+        $root = new DocumentRoot($this->server, $badPath, $filesystem);
     }
 
     public function provideBadDocRoots(): array
@@ -198,7 +192,7 @@ class DocumentRootTest extends AsyncTestCase
      */
     public function testDebugModeIgnoresCacheIfCacheControlHeaderIndicatesToDoSo(): void
     {
-        $server = $this->createServer((new Options)->withDebugMode());
+        $server = $this->createServer();
 
         $this->root->onStart($server);
 
@@ -231,7 +225,7 @@ class DocumentRootTest extends AsyncTestCase
 
     public function testOptionsHeader(): void
     {
-        $root = new DocumentRoot(self::fixturePath());
+        $root = new DocumentRoot($this->server, self::fixturePath());
         $request = new Request($this->createMock(Client::class), "OPTIONS", $this->createUri("/"));
 
         $response = $root->handleRequest($request);
@@ -242,9 +236,9 @@ class DocumentRootTest extends AsyncTestCase
 
     public function testPreconditionFailure(): void
     {
-        $root = new DocumentRoot(self::fixturePath());
+        $root = new DocumentRoot($this->server, self::fixturePath());
 
-        $server = $this->createServer((new Options)->withDebugMode());
+        $server = $this->createServer();
 
         $root->setUseEtagInode(false);
         $root->onStart($server);
@@ -262,7 +256,7 @@ class DocumentRootTest extends AsyncTestCase
 
     public function testPreconditionNotModified(): void
     {
-        $root = new DocumentRoot(self::fixturePath());
+        $root = new DocumentRoot($this->server, self::fixturePath());
         $root->setUseEtagInode(false);
         $diskPath = \realpath(self::fixturePath())."/index.htm";
         $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
@@ -281,7 +275,7 @@ class DocumentRootTest extends AsyncTestCase
 
     public function testPreconditionRangeFail(): void
     {
-        $root = new DocumentRoot(self::fixturePath());
+        $root = new DocumentRoot($this->server, self::fixturePath());
         $root->setUseEtagInode(false);
         $diskPath = \realpath(self::fixturePath())."/index.htm";
         $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
@@ -298,9 +292,9 @@ class DocumentRootTest extends AsyncTestCase
 
     public function testBadRange(): void
     {
-        $root = new DocumentRoot(self::fixturePath());
+        $root = new DocumentRoot($this->server, self::fixturePath());
 
-        $server = $this->createServer((new Options)->withDebugMode());
+        $server = $this->createServer();
 
         $root->setUseEtagInode(false);
         $root->onStart($server);
@@ -324,7 +318,7 @@ class DocumentRootTest extends AsyncTestCase
      */
     public function testValidRange(string $range, callable $validator): void
     {
-        $root = new DocumentRoot(self::fixturePath());
+        $root = new DocumentRoot($this->server, self::fixturePath());
         $root->setUseEtagInode(false);
 
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [

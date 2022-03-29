@@ -3,6 +3,7 @@
 namespace Amp\Http\Server\StaticContent\Test;
 
 use Amp\ByteStream;
+use Amp\Http\Server\HttpSocketServer;
 use Amp\Http\Server\Server;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\PHPUnit\AsyncTestCase;
@@ -11,20 +12,27 @@ use Psr\Log\NullLogger;
 
 class FuzzingTest extends AsyncTestCase
 {
-    /** @var Socket\Server */
-    private static Socket\Server $socket;
+    private static Socket\SocketServer $socket;
 
     /** @var string */
     private static string $documentRoot;
+
+    private static HttpSocketServer $server;
 
     public static function setUpBeforeClass(): void
     {
         parent::setUpBeforeClass();
 
-        self::$socket = Socket\Server::listen("127.0.0.1:0");
         self::$documentRoot = \sys_get_temp_dir() . '/amphp-http-server-document-root-' . \bin2hex(\random_bytes(4));
 
         \mkdir(self::$documentRoot);
+
+        $server = new HttpSocketServer(new NullLogger);
+        $server->expose(new Socket\InternetAddress('127.0.0.1', 0));
+        $server->start(new DocumentRoot($server, self::$documentRoot));
+
+        self::$server = $server;
+        self::$socket = $server->getServers()[0] ?? self::fail('Could not get created socket server');
     }
 
     public static function tearDownAfterClass(): void
@@ -35,15 +43,16 @@ class FuzzingTest extends AsyncTestCase
             \rmdir(self::$documentRoot);
         }
 
-        self::$socket->close();
+        self::$server->stop();
     }
 
 
     /** @dataProvider provideAttacks */
     public function testDocumentRootBreakout(string $input): void
     {
-        $server = new Server([self::$socket], new DocumentRoot(self::$documentRoot), new NullLogger);
-        $server->start();
+//        $server = new HttpSocketServer(new NullLogger);
+//        $documentRoot = new DocumentRoot($server, self::$documentRoot);
+//        $server->start($documentRoot);
 
         $client = Socket\connect((string) self::$socket->getAddress());
         $client->write("GET {$input} HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n");
@@ -58,8 +67,6 @@ class FuzzingTest extends AsyncTestCase
             HTTP/1.1\ 404\ Not\ Found|
             ^$
         )x', $response);
-
-        $server->stop();
     }
 
     public function provideAttacks(): array
