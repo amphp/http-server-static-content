@@ -40,7 +40,7 @@
         "amphp/phpunit-util": "^3",
         "amphp/php-cs-fixer-config": "dev-master",
         "phpunit/phpunit": "^9",
-        "danielmiessler/sec-lists": "2019.3"
+        "danielmiessler/sec-lists": "2022.1"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
@@ -66,11 +66,11 @@
             "type": "package",
             "package": {
                 "name": "danielmiessler/sec-lists",
-                "version": "2019.3",
+                "version": "2022.1",
                 "source": {
                     "url": "https://github.com/danielmiessler/SecLists",
                     "type": "git",
-                    "reference": "origin/master"
+                    "reference": "2022.1"
                 }
             }
         }
