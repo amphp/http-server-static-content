@@ -2,20 +2,14 @@
 
 namespace Amp\Http\Server\StaticContent\Test;
 
-use Amp\File\Filesystem;
-use Amp\File\FilesystemDriver;
 use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Driver\Client;
 use Amp\Http\Server\HttpServer;
-use Amp\Http\Server\HttpSocketServer;
-use Amp\Http\Server\Options;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Status;
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\Socket;
 use Psr\Http\Message\UriInterface as PsrUri;
-use Psr\Log\LoggerInterface as PsrLogger;
 
 class DocumentRootTest extends AsyncTestCase
 {
@@ -32,7 +26,7 @@ class DocumentRootTest extends AsyncTestCase
     {
         parent::setUp();
         $this->server = $this->createServer();
-        $this->root = new DocumentRoot($this->server, self::fixturePath());
+        $this->root = new DocumentRoot($this->server, new DefaultErrorHandler(), self::fixturePath());
         $this->root->onStart($this->server);
     }
 
@@ -103,8 +97,7 @@ class DocumentRootTest extends AsyncTestCase
         $this->expectException(\Error::class);
         $this->expectExceptionMessage('Document root requires a readable directory');
 
-        $filesystem = new Filesystem($this->createMock(FilesystemDriver::class));
-        $root = new DocumentRoot($this->server, $badPath, $filesystem);
+        $root = new DocumentRoot($this->server, new DefaultErrorHandler(), $badPath);
     }
 
     public function provideBadDocRoots(): array
@@ -225,10 +218,9 @@ class DocumentRootTest extends AsyncTestCase
 
     public function testOptionsHeader(): void
     {
-        $root = new DocumentRoot($this->server, self::fixturePath());
         $request = new Request($this->createMock(Client::class), "OPTIONS", $this->createUri("/"));
 
-        $response = $root->handleRequest($request);
+        $response = $this->root->handleRequest($request);
 
         $this->assertSame("GET, HEAD, OPTIONS", $response->getHeader('allow'));
         $this->assertSame("bytes", $response->getHeader('accept-ranges'));
@@ -236,28 +228,20 @@ class DocumentRootTest extends AsyncTestCase
 
     public function testPreconditionFailure(): void
     {
-        $root = new DocumentRoot($this->server, self::fixturePath());
-
-        $server = $this->createServer();
-
-        $root->setUseEtagInode(false);
-        $root->onStart($server);
-
-        $diskPath = \realpath(self::fixturePath())."/index.htm";
+        $this->root->setUseEtagInode(false);
 
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "if-match" => "any value",
         ]);
 
-        $response = $root->handleRequest($request);
+        $response = $this->root->handleRequest($request);
 
         $this->assertSame(Status::PRECONDITION_FAILED, $response->getStatus());
     }
 
     public function testPreconditionNotModified(): void
     {
-        $root = new DocumentRoot($this->server, self::fixturePath());
-        $root->setUseEtagInode(false);
+        $this->root->setUseEtagInode(false);
         $diskPath = \realpath(self::fixturePath())."/index.htm";
         $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
 
@@ -266,7 +250,7 @@ class DocumentRootTest extends AsyncTestCase
             "if-modified-since" => "2.1.1970",
         ]);
 
-        $response = $root->handleRequest($request);
+        $response = $this->root->handleRequest($request);
 
         $this->assertSame(Status::NOT_MODIFIED, $response->getStatus());
         $this->assertSame(\gmdate("D, d M Y H:i:s", \filemtime($diskPath))." GMT", $response->getHeader("last-modified"));
@@ -275,8 +259,7 @@ class DocumentRootTest extends AsyncTestCase
 
     public function testPreconditionRangeFail(): void
     {
-        $root = new DocumentRoot($this->server, self::fixturePath());
-        $root->setUseEtagInode(false);
+        $this->root->setUseEtagInode(false);
         $diskPath = \realpath(self::fixturePath())."/index.htm";
         $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
 
@@ -284,7 +267,7 @@ class DocumentRootTest extends AsyncTestCase
             "if-range" => "foo",
         ]);
 
-        $response = $root->handleRequest($request);
+        $response = $this->root->handleRequest($request);
 
         $stream = $response->getBody();
         $this->assertSame("test", $stream->read());
@@ -292,12 +275,7 @@ class DocumentRootTest extends AsyncTestCase
 
     public function testBadRange(): void
     {
-        $root = new DocumentRoot($this->server, self::fixturePath());
-
-        $server = $this->createServer();
-
-        $root->setUseEtagInode(false);
-        $root->onStart($server);
+        $this->root->setUseEtagInode(false);
 
         $diskPath = \realpath(self::fixturePath())."/index.htm";
         $etag = \md5($diskPath.\filemtime($diskPath).\filesize($diskPath));
@@ -307,7 +285,7 @@ class DocumentRootTest extends AsyncTestCase
             "range" => "bytes=7-10",
         ]);
 
-        $response = $root->handleRequest($request);
+        $response = $this->root->handleRequest($request);
 
         $this->assertSame(Status::RANGE_NOT_SATISFIABLE, $response->getStatus());
         $this->assertSame("*/4", $response->getHeader("content-range"));
@@ -318,15 +296,14 @@ class DocumentRootTest extends AsyncTestCase
      */
     public function testValidRange(string $range, callable $validator): void
     {
-        $root = new DocumentRoot($this->server, self::fixturePath());
-        $root->setUseEtagInode(false);
+        $this->root->setUseEtagInode(false);
 
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "if-range" => "+1 second",
             "range" => "bytes=$range",
         ]);
 
-        $response = $root->handleRequest($request);
+        $response = $this->root->handleRequest($request);
 
         $this->assertSame(Status::PARTIAL_CONTENT, $response->getStatus());
 
@@ -355,7 +332,7 @@ class DocumentRootTest extends AsyncTestCase
                 foreach ([["3-3", "t"], ["1-2", "es"], ["2-3", "st"]] as list($range, $text)) {
                     $expected = <<<PART
 --$boundary\r
-Content-Type: text/plain; charset=utf-8\r
+Content-Type: text/html; charset=utf-8\r
 Content-Range: bytes $range/4\r
 \r
 $text\r

@@ -33,8 +33,6 @@ final class DocumentRoot implements RequestHandler
 
     private bool $running = false;
 
-    private ErrorHandler $errorHandler;
-
     private ?RequestHandler $fallback = null;
 
     private string $root;
@@ -66,8 +64,12 @@ final class DocumentRoot implements RequestHandler
      * @param string $root Document root
      * @param Filesystem|null $filesystem Optional filesystem driver
      */
-    public function __construct(HttpServer $httpServer, string $root, ?Filesystem $filesystem = null)
-    {
+    public function __construct(
+        HttpServer $httpServer,
+        private readonly ErrorHandler $errorHandler,
+        string $root,
+        ?Filesystem $filesystem = null
+    ) {
         $httpServer->onStart($this->onStart(...));
         $httpServer->onStop($this->onStop(...));
 
@@ -691,8 +693,6 @@ final class DocumentRoot implements RequestHandler
         if (empty($this->mimeFileTypes)) {
             $this->loadMimeFileTypes(self::DEFAULT_MIME_TYPE_FILE);
         }
-
-        $this->errorHandler = $server->getErrorHandler();
 
         $this->debug = \ini_get('zend.assertions') === '1';
 

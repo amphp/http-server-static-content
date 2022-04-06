@@ -3,8 +3,8 @@
 namespace Amp\Http\Server\StaticContent\Test;
 
 use Amp\ByteStream;
+use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\HttpSocketServer;
-use Amp\Http\Server\Server;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Socket;
@@ -29,7 +29,7 @@ class FuzzingTest extends AsyncTestCase
 
         $server = new HttpSocketServer(new NullLogger);
         $server->expose(new Socket\InternetAddress('127.0.0.1', 0));
-        $server->start(new DocumentRoot($server, self::$documentRoot));
+        $server->start(new DocumentRoot($server, new DefaultErrorHandler(), self::$documentRoot));
 
         self::$server = $server;
         self::$socket = $server->getServers()[0] ?? self::fail('Could not get created socket server');
@@ -50,10 +50,6 @@ class FuzzingTest extends AsyncTestCase
     /** @dataProvider provideAttacks */
     public function testDocumentRootBreakout(string $input): void
     {
-//        $server = new HttpSocketServer(new NullLogger);
-//        $documentRoot = new DocumentRoot($server, self::$documentRoot);
-//        $server->start($documentRoot);
-
         $client = Socket\connect((string) self::$socket->getAddress());
         $client->write("GET {$input} HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n");
 
