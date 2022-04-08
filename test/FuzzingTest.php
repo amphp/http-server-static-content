@@ -4,7 +4,7 @@ namespace Amp\Http\Server\StaticContent\Test;
 
 use Amp\ByteStream;
 use Amp\Http\Server\DefaultErrorHandler;
-use Amp\Http\Server\HttpSocketServer;
+use Amp\Http\Server\SocketHttpServer;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Socket;
@@ -17,7 +17,7 @@ class FuzzingTest extends AsyncTestCase
     /** @var string */
     private static string $documentRoot;
 
-    private static HttpSocketServer $server;
+    private static SocketHttpServer $server;
 
     public static function setUpBeforeClass(): void
     {
@@ -27,9 +27,11 @@ class FuzzingTest extends AsyncTestCase
 
         \mkdir(self::$documentRoot);
 
-        $server = new HttpSocketServer(new NullLogger);
+        $errorHandler = new DefaultErrorHandler();
+
+        $server = new SocketHttpServer(new NullLogger);
         $server->expose(new Socket\InternetAddress('127.0.0.1', 0));
-        $server->start(new DocumentRoot($server, new DefaultErrorHandler(), self::$documentRoot));
+        $server->start(new DocumentRoot($server, $errorHandler, self::$documentRoot), $errorHandler);
 
         self::$server = $server;
         self::$socket = $server->getServers()[0] ?? self::fail('Could not get created socket server');

@@ -73,11 +73,7 @@ class DocumentRootTest extends AsyncTestCase
 
     public function createServer(): HttpServer
     {
-        $server = $this->createMock(HttpServer::class);
-        $server->method('getErrorHandler')
-            ->willReturn(new DefaultErrorHandler());
-
-        return $server;
+        return $this->createMock(HttpServer::class);
     }
 
     public function createUri(string $path): PsrUri
