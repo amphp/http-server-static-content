@@ -18,7 +18,7 @@ function removeDotPathSegments(string $path): string
     // the removeDotPathSegments() function! (on Windows at least)
     $path = \str_replace("\\", "/", $path);
 
-    if (\strpos($path, '/.') === false) {
+    if (!\str_contains($path, '/.')) {
         return $path;
     }
 
@@ -29,11 +29,11 @@ function removeDotPathSegments(string $path): string
     while ($inputBuffer !== '') {
         // A.  If the input buffer begins with a prefix of "../" or "./",
         //     then remove that prefix from the input buffer; otherwise,
-        if (\strpos($inputBuffer, "./") === 0) {
+        if (\str_starts_with($inputBuffer, "./")) {
             $inputBuffer = \substr($inputBuffer, 2);
             continue;
         }
-        if (\strpos($inputBuffer, "../") === 0) {
+        if (\str_starts_with($inputBuffer, "../")) {
             $inputBuffer = \substr($inputBuffer, 3);
             continue;
         }
@@ -45,7 +45,7 @@ function removeDotPathSegments(string $path): string
             $outputStack[] = '/';
             break;
         }
-        if (\substr($inputBuffer, 0, 3) === "/./") {
+        if (\str_starts_with($inputBuffer, "/./")) {
             $inputBuffer = \substr($inputBuffer, 2);
             continue;
         }
@@ -60,7 +60,7 @@ function removeDotPathSegments(string $path): string
             $outputStack[] = '/';
             break;
         }
-        if (\substr($inputBuffer, 0, 4) === "/../") {
+        if (\str_starts_with($inputBuffer, "/../")) {
             while (\array_pop($outputStack) === "/");
             $inputBuffer = \substr($inputBuffer, 3);
             continue;
