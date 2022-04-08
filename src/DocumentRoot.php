@@ -686,7 +686,7 @@ final class DocumentRoot implements RequestHandler
         $this->bufferedFileSizeLimit = $bytes;
     }
 
-    public function onStart(HttpServer $server): void
+    private function onStart(): void
     {
         $this->running = true;
 
@@ -701,7 +701,7 @@ final class DocumentRoot implements RequestHandler
         EventLoop::unreference($this->watcher);
     }
 
-    public function onStop(): void
+    private function onStop(): void
     {
         $this->cache = [];
         $this->cacheTimeouts = [];

@@ -6,10 +6,13 @@ use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Driver\Client;
 use Amp\Http\Server\HttpServer;
 use Amp\Http\Server\Request;
+use Amp\Http\Server\SocketHttpServer;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Status;
 use Amp\PHPUnit\AsyncTestCase;
+use Amp\Socket\InternetAddress;
 use Psr\Http\Message\UriInterface as PsrUri;
+use Psr\Log\NullLogger;
 
 class DocumentRootTest extends AsyncTestCase
 {
@@ -25,9 +28,17 @@ class DocumentRootTest extends AsyncTestCase
     public function setUp(): void
     {
         parent::setUp();
-        $this->server = $this->createServer();
-        $this->root = new DocumentRoot($this->server, new DefaultErrorHandler(), self::fixturePath());
-        $this->root->onStart($this->server);
+        $errorHandler = new DefaultErrorHandler();
+        $this->server = new SocketHttpServer(new NullLogger());
+        $this->server->expose(new InternetAddress('127.0.0.1', 0));
+        $this->root = new DocumentRoot($this->server, $errorHandler, self::fixturePath());
+        $this->server->start($this->root, $errorHandler);
+    }
+
+    public function tearDown(): void
+    {
+        parent::tearDown();
+        $this->server->stop();
     }
 
     /**
@@ -181,10 +192,6 @@ class DocumentRootTest extends AsyncTestCase
      */
     public function testDebugModeIgnoresCacheIfCacheControlHeaderIndicatesToDoSo(): void
     {
-        $server = $this->createServer();
-
-        $this->root->onStart($server);
-
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "cache-control" => "no-cache",
         ]);
