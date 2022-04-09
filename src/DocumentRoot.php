@@ -118,8 +118,6 @@ final class DocumentRoot implements RequestHandler
      * Specifies an instance of RequestHandler that is used if no file exists for the requested path.
      * If no fallback is given, a 404 response is returned from respond() when the file does not exist.
      *
-     * @param RequestHandler $requestHandler
-     *
      * @throws \Error If the server has started.
      */
     public function setFallback(RequestHandler $requestHandler): void
@@ -135,8 +133,6 @@ final class DocumentRoot implements RequestHandler
      * Respond to HTTP requests for filesystem resources.
      *
      * @param Request $request Request to handle.
-     *
-     * @return Response
      */
     public function handleRequest(Request $request): Response
     {
@@ -439,8 +435,6 @@ final class DocumentRoot implements RequestHandler
      *
      * @param int    $size Total size of the file in bytes.
      * @param string $rawRanges Ranges as provided by the client.
-     *
-     * @return Internal\ByteRange|null
      */
     private function normalizeByteRanges(int $size, string $rawRanges): ?Internal\ByteRange
     {
@@ -520,7 +514,7 @@ final class DocumentRoot implements RequestHandler
 
     private function sendSingleRange(File $handle, int $startPos, int $endPos): ReadableStream
     {
-        $generator = Pipeline::fromIterable(fn() => $this->readRangeFromHandle($handle, $startPos, $endPos));
+        $generator = Pipeline::fromIterable(fn () => $this->readRangeFromHandle($handle, $startPos, $endPos));
         return new ReadableIterableStream($generator->getIterator());
     }
 

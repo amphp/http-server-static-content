@@ -7,10 +7,6 @@ namespace Amp\Http\Server\StaticContent;
  *
  * This functionality is critical to avoid malicious URIs attempting to
  * traverse the document root above the allowed base path.
- *
- * @param string $path
- *
- * @return string
  */
 function removeDotPathSegments(string $path): string
 {

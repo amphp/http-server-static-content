@@ -14,7 +14,6 @@ class FuzzingTest extends AsyncTestCase
 {
     private static Socket\SocketServer $socket;
 
-    /** @var string */
     private static string $documentRoot;
 
     private static SocketHttpServer $server;
@@ -47,7 +46,6 @@ class FuzzingTest extends AsyncTestCase
 
         self::$server->stop();
     }
-
 
     /** @dataProvider provideAttacks */
     public function testDocumentRootBreakout(string $input): void
