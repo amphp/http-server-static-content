@@ -15,7 +15,8 @@
         "callable",
         "mixed",
         "void",
-        "object"
+        "object",
+        "removeDotPathSegments"
     ],
     "php-core-extensions": [
         "Core",
