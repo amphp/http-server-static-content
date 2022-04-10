@@ -14,9 +14,12 @@ use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Response;
 use Amp\Http\Status;
 use Amp\Pipeline\Pipeline;
+use cash\LRUCache;
 use Revolt\EventLoop;
+use Traversable;
 use function Amp\File\filesystem;
 use function Amp\Http\formatDateHeader;
+use function Amp\weakClosure;
 
 final class DocumentRoot implements RequestHandler
 {
@@ -36,11 +39,16 @@ final class DocumentRoot implements RequestHandler
     private ?RequestHandler $fallback = null;
 
     private string $root;
-    private bool $debug = false;
+    private bool $debug;
     private Filesystem $filesystem;
     private string $multipartBoundary;
+
+    /** @var array<string, Internal\FileInformation> */
     private array $cache = [];
-    private array $cacheTimeouts = [];
+
+    /** @var LRUCache&\Traversable */
+    private LRUCache $cacheTimeouts;
+
     private int $now;
     private ?string $watcher = null;
 
@@ -70,9 +78,6 @@ final class DocumentRoot implements RequestHandler
         string $root,
         ?Filesystem $filesystem = null
     ) {
-        $httpServer->onStart($this->onStart(...));
-        $httpServer->onStop($this->onStop(...));
-
         $root = \str_replace("\\", "/", $root);
         if (!(\is_readable($root) && \is_dir($root))) {
             throw new \Error(
@@ -88,6 +93,17 @@ final class DocumentRoot implements RequestHandler
         $this->now = \time();
         $this->filesystem = $filesystem ?? filesystem();
         $this->multipartBoundary = \strtr(\base64_encode(\random_bytes(16)), '+/', '-_');
+        $this->debug = \ini_get('zend.assertions') === '1';
+
+        $this->cacheTimeouts = new class (\PHP_INT_MAX) extends LRUCache implements \IteratorAggregate {
+            public function getIterator(): Traversable
+            {
+                yield from $this->data;
+            }
+        };
+
+        $httpServer->onStart($this->onStart(...));
+        $httpServer->onStop($this->onStop(...));
     }
 
     /**
@@ -104,12 +120,10 @@ final class DocumentRoot implements RequestHandler
 
             $fileInfo = $this->cache[$path];
 
-            unset(
-                $this->cache[$path],
-                $this->cacheTimeouts[$path]
-            );
+            $this->cacheTimeouts->remove($path);
+            unset($this->cache[$path]);
 
-            $this->bufferedFileCount -= isset($fileInfo->buffer);
+            $this->bufferedFileCount -= isset($fileInfo->buffer) ? 1 : 0;
             $this->cacheEntryCount--;
         }
     }
@@ -197,7 +211,7 @@ final class DocumentRoot implements RequestHandler
         if ($this->cacheEntryCount < $this->cacheEntryLimit) {
             $this->cacheEntryCount++;
             $this->cache[$reqPath] = $fileInfo;
-            $this->cacheTimeouts[$reqPath] = $this->now + $this->cacheEntryTtl;
+            $this->cacheTimeouts->put($reqPath, $this->now + $this->cacheEntryTtl);
         }
 
         return $this->respondFromFileInfo($fileInfo, $request);
@@ -688,17 +702,15 @@ final class DocumentRoot implements RequestHandler
             $this->loadMimeFileTypes(self::DEFAULT_MIME_TYPE_FILE);
         }
 
-        $this->debug = \ini_get('zend.assertions') === '1';
-
         $this->now = \time();
-        $this->watcher = EventLoop::repeat(1, $this->clearExpiredCacheEntries(...));
+        $this->watcher = EventLoop::repeat(1, weakClosure($this->clearExpiredCacheEntries(...)));
         EventLoop::unreference($this->watcher);
     }
 
     private function onStop(): void
     {
         $this->cache = [];
-        $this->cacheTimeouts = [];
+        $this->cacheTimeouts->clear();
         $this->cacheEntryCount = 0;
         $this->bufferedFileCount = 0;
         $this->running = false;
