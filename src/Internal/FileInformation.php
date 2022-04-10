@@ -9,8 +9,6 @@ final class FileInformation
 {
     public bool $exists = false;
 
-    public string $path;
-
     public ?int $size = null;
 
     public ?int $mtime = null;
@@ -20,4 +18,9 @@ final class FileInformation
     public ?string $buffer = null;
 
     public ?string $etag = null;
+
+    public function __construct(
+        public string $path,
+    ) {
+    }
 }

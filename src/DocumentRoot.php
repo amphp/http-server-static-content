@@ -12,11 +12,11 @@ use Amp\Http\Server\HttpServer;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Response;
+use Amp\Http\Server\StaticContent\Internal\Precondition;
 use Amp\Http\Status;
 use Amp\Pipeline\Pipeline;
 use cash\LRUCache;
 use Revolt\EventLoop;
-use Traversable;
 use function Amp\File\filesystem;
 use function Amp\Http\formatDateHeader;
 use function Amp\weakClosure;
@@ -27,12 +27,6 @@ final class DocumentRoot implements RequestHandler
     public const DEFAULT_MIME_TYPE_FILE = __DIR__ . "/../resources/mime";
 
     private const READ_CHUNK_SIZE = 8192;
-
-    private const PRECONDITION_NOT_MODIFIED = 1;
-    private const PRECONDITION_FAILED = 2;
-    private const PRECONDITION_IF_RANGE_OK = 3;
-    private const PRECONDITION_IF_RANGE_FAILED = 4;
-    private const PRECONDITION_OK = 5;
 
     private bool $running = false;
 
@@ -95,8 +89,8 @@ final class DocumentRoot implements RequestHandler
         $this->multipartBoundary = \strtr(\base64_encode(\random_bytes(16)), '+/', '-_');
         $this->debug = \ini_get('zend.assertions') === '1';
 
-        $this->cacheTimeouts = new class (\PHP_INT_MAX) extends LRUCache implements \IteratorAggregate {
-            public function getIterator(): Traversable
+        $this->cacheTimeouts = new class(\PHP_INT_MAX) extends LRUCache implements \IteratorAggregate {
+            public function getIterator(): \Traversable
             {
                 yield from $this->data;
             }
@@ -219,10 +213,7 @@ final class DocumentRoot implements RequestHandler
 
     private function lookup(string $path): Internal\FileInformation
     {
-        $fileInfo = new Internal\FileInformation;
-
-        $fileInfo->exists = false;
-        $fileInfo->path = $path;
+        $fileInfo = new Internal\FileInformation($path);
 
         if (!$stat = $this->filesystem->getStatus($path)) {
             return $fileInfo;
@@ -273,7 +264,7 @@ final class DocumentRoot implements RequestHandler
                 return $this->fallback->handleRequest($request);
             }
 
-            return $this->errorHandler->handleError(Status::NOT_FOUND, null, $request);
+            return $this->errorHandler->handleError(Status::NOT_FOUND, request: $request);
         }
 
         switch ($request->getMethod()) {
@@ -288,7 +279,7 @@ final class DocumentRoot implements RequestHandler
                 ]);
 
             default:
-                $response = $this->errorHandler->handleError(Status::METHOD_NOT_ALLOWED, null, $request);
+                $response = $this->errorHandler->handleError(Status::METHOD_NOT_ALLOWED, request: $request);
                 $response->setHeader("Allow", "GET, HEAD, OPTIONS");
                 return $response;
         }
@@ -296,7 +287,11 @@ final class DocumentRoot implements RequestHandler
         $precondition = $this->checkPreconditions($request, $fileInfo->mtime, $fileInfo->etag);
 
         switch ($precondition) {
-            case self::PRECONDITION_NOT_MODIFIED:
+            case Precondition::Ok:
+            case Precondition::IfRangeOk:
+                break;
+
+            case Precondition::NotModified:
                 $lastModifiedHttpDate = formatDateHeader($fileInfo->mtime);
                 $response = new Response(Status::NOT_MODIFIED, ["Last-Modified" => $lastModifiedHttpDate]);
                 if ($fileInfo->etag) {
@@ -304,57 +299,54 @@ final class DocumentRoot implements RequestHandler
                 }
                 return $response;
 
-            case self::PRECONDITION_FAILED:
-                return $this->errorHandler->handleError(Status::PRECONDITION_FAILED, null, $request);
+            case Precondition::Failed:
+                return $this->errorHandler->handleError(Status::PRECONDITION_FAILED, request: $request);
 
-            case self::PRECONDITION_IF_RANGE_FAILED:
-                // Return this so the resulting generator will be auto-resolved
+            case Precondition::IfRangeFailed:
                 return $this->doNonRangeResponse($fileInfo);
         }
 
         if (!$rangeHeader = $request->getHeader("Range")) {
-            // Return this so the resulting generator will be auto-resolved
             return $this->doNonRangeResponse($fileInfo);
         }
 
         if ($range = $this->normalizeByteRanges($fileInfo->size, $rangeHeader)) {
-            // Return this so the resulting generator will be auto-resolved
             return $this->doRangeResponse($range, $fileInfo);
         }
 
         // If we're still here this is the only remaining response we can send
-        $response = $this->errorHandler->handleError(Status::RANGE_NOT_SATISFIABLE, null, $request);
+        $response = $this->errorHandler->handleError(Status::RANGE_NOT_SATISFIABLE, request: $request);
         $response->setHeader("Content-Range", "*/{$fileInfo->size}");
         return $response;
     }
 
-    private function checkPreconditions(Request $request, int $mtime, string $etag): int
+    private function checkPreconditions(Request $request, int $mtime, string $etag): Precondition
     {
         $ifMatch = $request->getHeader("If-Match");
         if ($ifMatch && \stripos($ifMatch, $etag) === false) {
-            return self::PRECONDITION_FAILED;
+            return Precondition::Failed;
         }
 
         $ifNoneMatch = $request->getHeader("If-None-Match");
         if ($ifNoneMatch && \stripos($ifNoneMatch, $etag) !== false) {
-            return self::PRECONDITION_NOT_MODIFIED;
+            return Precondition::NotModified;
         }
 
         $ifModifiedSince = $request->getHeader("If-Modified-Since");
         $ifModifiedSince = $ifModifiedSince ? @\strtotime($ifModifiedSince) : 0;
         if ($ifModifiedSince && $mtime > $ifModifiedSince) {
-            return self::PRECONDITION_NOT_MODIFIED;
+            return Precondition::NotModified;
         }
 
         $ifUnmodifiedSince = $request->getHeader("If-Unmodified-Since");
         $ifUnmodifiedSince = $ifUnmodifiedSince ? @\strtotime($ifUnmodifiedSince) : 0;
         if ($ifUnmodifiedSince && $mtime > $ifUnmodifiedSince) {
-            return self::PRECONDITION_FAILED;
+            return Precondition::Failed;
         }
 
         $ifRange = $request->getHeader("If-Range");
         if ($ifRange === null || !$request->getHeader("Range")) {
-            return self::PRECONDITION_OK;
+            return Precondition::Ok;
         }
 
         /**
@@ -366,11 +358,11 @@ final class DocumentRoot implements RequestHandler
          * @link https://tools.ietf.org/html/rfc7233#section-3.2
          */
         if ($httpDate = @\strtotime($ifRange)) {
-            return ($httpDate > $mtime) ? self::PRECONDITION_IF_RANGE_OK : self::PRECONDITION_IF_RANGE_FAILED;
+            return ($httpDate > $mtime) ? Precondition::IfRangeOk : Precondition::IfRangeFailed;
         }
 
         // If the If-Range header was not an HTTP date we assume it's an Etag
-        return ($etag === $ifRange) ? self::PRECONDITION_IF_RANGE_OK : self::PRECONDITION_IF_RANGE_FAILED;
+        return ($etag === $ifRange) ? Precondition::IfRangeOk : Precondition::IfRangeFailed;
     }
 
     private function doNonRangeResponse(Internal\FileInformation $fileInfo): Response
@@ -458,7 +450,7 @@ final class DocumentRoot implements RequestHandler
 
         foreach (\explode(',', $rawRanges) as $range) {
             // If a range is missing the dash separator it's malformed; pull out here.
-            if (false === \strpos($range, '-')) {
+            if (!\str_contains($range, '-')) {
                 return null;
             }
 
@@ -491,11 +483,7 @@ final class DocumentRoot implements RequestHandler
             $ranges[] = [$startPos, $endPos];
         }
 
-        $range = new Internal\ByteRange;
-        $range->boundary = $this->multipartBoundary;
-        $range->ranges = $ranges;
-
-        return $range;
+        return new Internal\ByteRange($this->multipartBoundary, $ranges);
     }
 
     private function doRangeResponse(Internal\ByteRange $range, Internal\FileInformation $fileInfo): Response
@@ -528,13 +516,13 @@ final class DocumentRoot implements RequestHandler
 
     private function sendSingleRange(File $handle, int $startPos, int $endPos): ReadableStream
     {
-        $generator = Pipeline::fromIterable(fn () => $this->readRangeFromHandle($handle, $startPos, $endPos));
-        return new ReadableIterableStream($generator->getIterator());
+        $pipeline = Pipeline::fromIterable($this->readRangeFromHandle($handle, $startPos, $endPos));
+        return new ReadableIterableStream($pipeline->getIterator());
     }
 
     private function sendMultiRange($handle, Internal\FileInformation $fileInfo, Internal\ByteRange $range): ReadableStream
     {
-        $generator = Pipeline::fromIterable(function () use ($handle, $range, $fileInfo) {
+        $pipeline = Pipeline::fromIterable(function () use ($handle, $range, $fileInfo) {
             foreach ($range->ranges as list($startPos, $endPos)) {
                 yield \sprintf(
                     "--%s\r\nContent-Type: %s\r\nContent-Range: bytes %d-%d/%d\r\n\r\n",
@@ -550,7 +538,7 @@ final class DocumentRoot implements RequestHandler
             yield "--{$range->boundary}--";
         });
 
-        return new ReadableIterableStream($generator->getIterator());
+        return new ReadableIterableStream($pipeline->getIterator());
     }
 
     private function readRangeFromHandle(File $handle, int $startPos, int $endPos): \Generator
@@ -559,8 +547,7 @@ final class DocumentRoot implements RequestHandler
         $handle->seek($startPos);
 
         while ($bytesRemaining) {
-            $toBuffer = $bytesRemaining > self::READ_CHUNK_SIZE ? self::READ_CHUNK_SIZE : $bytesRemaining;
-            $chunk = $handle->read(length: $toBuffer);
+            $chunk = $handle->read(length: \min($bytesRemaining, self::READ_CHUNK_SIZE));
             $bytesRemaining -= \strlen($chunk);
             yield $chunk;
         }
@@ -616,6 +603,9 @@ final class DocumentRoot implements RequestHandler
         $this->mimeFileTypes = $mimeTypes;
     }
 
+    /**
+     * @param array<string, string> $mimeTypes
+     */
     public function setMimeTypes(array $mimeTypes): void
     {
         foreach ($mimeTypes as $ext => $type) {
