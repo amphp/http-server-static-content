@@ -32,16 +32,16 @@ final class DocumentRoot implements RequestHandler
 
     private ?RequestHandler $fallback = null;
 
-    private string $root;
-    private bool $debug;
-    private Filesystem $filesystem;
-    private string $multipartBoundary;
+    private readonly string $root;
+    private readonly bool $debug;
+    private readonly Filesystem $filesystem;
+    private readonly string $multipartBoundary;
 
     /** @var array<string, Internal\FileInformation> */
     private array $cache = [];
 
     /** @var LRUCache&\Traversable */
-    private LRUCache $cacheTimeouts;
+    private readonly LRUCache $cacheTimeouts;
 
     private int $now;
     private ?string $watcher = null;
