@@ -1,32 +1,29 @@
 # http-server-static-content
 
-This package provides a static content `RequestHandler` for [Amp's HTTP server](https://github.com/amphp/http-server).
+This package provides a static content `RequestHandler` implementations for the [AMPHP HTTP server](https://github.com/amphp/http-server).
 
 ## Usage
 
-**`DocumentRoot`** implements `RequestHandler`.
+**`DocumentRoot`** and **`StaticResource`** implement `RequestHandler`.
 
 ## Example
 
 ```php
 <?php
 
-use Amp\Http\Server\RequestHandler\CallableRequestHandler;
+use Amp\Http\Server\DefaultErrorHandler;
+use Amp\Http\Server\RequestHandler\ClosureRequestHandler;
 use Amp\Http\Server\Response;
-use Amp\Http\Server\Router;
-use Amp\Http\Server\Server;
+use Amp\Http\Server\SocketHttpServer;
 use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Status;
 
-$documentRoot = new DocumentRoot(__DIR__ . '/public');
-
 $router = new Amp\Http\Server\Router;
-
-$router->addRoute('GET', '/', new CallableRequestHandler(function () {
+$router->setFallback(new DocumentRoot(__DIR__ . '/public'));
+$router->addRoute('GET', '/', new ClosureRequestHandler(function () {
     return new Response(Status::OK, ['content-type' => 'text/plain'], 'Hello, world!');
 }));
 
-$router->setFallback($documentRoot);
 
-$server = new Server(..., $router, ...);
+$server->start($router, new DefaultErrorHandler());
 ```
