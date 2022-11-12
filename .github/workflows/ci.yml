@@ -14,6 +14,7 @@ jobs:
 
           - operating-system: 'ubuntu-latest'
             php-version: '8.2'
+            composer-require-checker-version: 'none'
 
           - operating-system: 'macos-latest'
             php-version: '8.1'
