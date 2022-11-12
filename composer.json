@@ -34,7 +34,7 @@
         "amphp/http-server": "^3",
         "amphp/http": "^1.5",
         "cash/lrucache": "^1",
-        "revolt/event-loop": "^0.2.4",
+        "revolt/event-loop": "^1 || ^0.2.4",
         "amphp/pipeline": "^1"
     },
     "require-dev": {
