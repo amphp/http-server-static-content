@@ -1,14 +1,14 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Amp\Http\Server\StaticContent\Test;
 
+use Amp\Http\HttpStatus;
 use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Driver\Client;
 use Amp\Http\Server\HttpServer;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\SocketHttpServer;
 use Amp\Http\Server\StaticContent\DocumentRoot;
-use Amp\Http\HttpStatus;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Socket\InternetAddress;
 use Psr\Http\Message\UriInterface as PsrUri;
