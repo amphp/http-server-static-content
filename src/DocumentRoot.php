@@ -5,6 +5,7 @@ namespace Amp\Http\Server\StaticContent;
 use Amp\ByteStream\ReadableBuffer;
 use Amp\ByteStream\ReadableIterableStream;
 use Amp\ByteStream\ReadableStream;
+use Amp\Cache\LocalCache;
 use Amp\File\File;
 use Amp\File\Filesystem;
 use Amp\Http\HttpStatus;
@@ -15,11 +16,8 @@ use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Response;
 use Amp\Http\Server\StaticContent\Internal\Precondition;
 use Amp\Pipeline\Pipeline;
-use cash\LRUCache;
-use Revolt\EventLoop;
 use function Amp\File\filesystem;
 use function Amp\Http\formatDateHeader;
-use function Amp\weakClosure;
 
 final class DocumentRoot implements RequestHandler
 {
@@ -37,14 +35,12 @@ final class DocumentRoot implements RequestHandler
     private readonly Filesystem $filesystem;
     private readonly string $multipartBoundary;
 
-    /** @var array<string, Internal\FileInformation> */
-    private array $cache = [];
+    /** @var LocalCache<Internal\FileInformation> */
+    private readonly LocalCache $cache;
 
-    /** @var LRUCache&\Traversable */
-    private readonly LRUCache $cacheTimeouts;
+    private readonly \Closure $onDispose;
 
     private int $now;
-    private ?string $watcher = null;
 
     private array $mimeTypes = [];
     private array $mimeFileTypes = [];
@@ -56,7 +52,6 @@ final class DocumentRoot implements RequestHandler
     private bool $useAggressiveCacheHeaders = false;
     private float $aggressiveCacheMultiplier = 0.9;
     private int $cacheEntryTtl = 10;
-    private int $cacheEntryCount = 0;
     private int $cacheEntryLimit = 2048;
     private int $bufferedFileCount = 0;
     private int $bufferedFileLimit = 50;
@@ -89,37 +84,17 @@ final class DocumentRoot implements RequestHandler
         $this->multipartBoundary = \strtr(\base64_encode(\random_bytes(16)), '+/', '-_');
         $this->debug = \ini_get('zend.assertions') === '1';
 
-        $this->cacheTimeouts = new class(\PHP_INT_MAX) extends LRUCache implements \IteratorAggregate {
-            public function getIterator(): \Traversable
-            {
-                yield from $this->data;
+        $this->cache = new LocalCache();
+
+        $bufferedFileCount = &$this->bufferedFileCount;
+        $this->onDispose = static function (string $path, ?string $buffer) use (&$bufferedFileCount): void {
+            if ($buffer !== null) {
+                --$bufferedFileCount;
             }
         };
 
         $httpServer->onStart($this->onStart(...));
         $httpServer->onStop($this->onStop(...));
-    }
-
-    /**
-     * Removes expired file information from the cache and updates the current 'now' value.
-     */
-    private function clearExpiredCacheEntries(): void
-    {
-        $this->now = \time();
-
-        foreach ($this->cacheTimeouts as $path => $timeout) {
-            if ($this->now <= $timeout) {
-                break;
-            }
-
-            $fileInfo = $this->cache[$path];
-
-            $this->cacheTimeouts->remove($path);
-            unset($this->cache[$path]);
-
-            $this->bufferedFileCount -= isset($fileInfo->buffer) ? 1 : 0;
-            $this->cacheEntryCount--;
-        }
     }
 
     /**
@@ -172,7 +147,7 @@ final class DocumentRoot implements RequestHandler
             }
         }
 
-        return $this->cache[$reqPath] ?? null;
+        return $this->cache->get($reqPath);
     }
 
     private function shouldBufferContent(Internal\FileInformation $fileInfo): bool
@@ -185,7 +160,7 @@ final class DocumentRoot implements RequestHandler
             return false;
         }
 
-        if ($this->cacheEntryCount >= $this->cacheEntryLimit) {
+        if ($this->cache->count() >= $this->cacheEntryLimit) {
             return false;
         }
 
@@ -202,10 +177,8 @@ final class DocumentRoot implements RequestHandler
         // Specifically use the request path to reference this file in the
         // cache because the file entry path may differ if it's reflecting
         // a directory index file.
-        if ($this->cacheEntryCount < $this->cacheEntryLimit) {
-            $this->cacheEntryCount++;
-            $this->cache[$reqPath] = $fileInfo;
-            $this->cacheTimeouts->put($reqPath, $this->now + $this->cacheEntryTtl);
+        if ($this->cache->count() < $this->cacheEntryLimit) {
+            $this->cache->set($reqPath, $fileInfo, $this->now + $this->cacheEntryTtl);
         }
 
         return $this->respondFromFileInfo($fileInfo, $request);
@@ -213,7 +186,7 @@ final class DocumentRoot implements RequestHandler
 
     private function lookup(string $path): Internal\FileInformation
     {
-        $fileInfo = new Internal\FileInformation($path);
+        $fileInfo = new Internal\FileInformation($path, $this->onDispose);
 
         if (!$stat = $this->filesystem->getStatus($path)) {
             return $fileInfo;
@@ -691,22 +664,10 @@ final class DocumentRoot implements RequestHandler
         if (empty($this->mimeFileTypes)) {
             $this->loadMimeFileTypes(self::DEFAULT_MIME_TYPE_FILE);
         }
-
-        $this->now = \time();
-        $this->watcher = EventLoop::repeat(1, weakClosure($this->clearExpiredCacheEntries(...)));
-        EventLoop::unreference($this->watcher);
     }
 
     private function onStop(): void
     {
-        $this->cache = [];
-        $this->cacheTimeouts->clear();
-        $this->cacheEntryCount = 0;
-        $this->bufferedFileCount = 0;
         $this->running = false;
-
-        if ($this->watcher) {
-            EventLoop::cancel($this->watcher);
-        }
     }
 }

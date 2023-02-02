@@ -19,8 +19,17 @@ final class FileInformation
 
     public ?string $etag = null;
 
+    /**
+     * @param \Closure(string $path, ?string $buffer): void $onDispose
+     */
     public function __construct(
         public string $path,
+        private readonly \Closure $onDispose,
     ) {
+    }
+
+    public function __destruct()
+    {
+        ($this->onDispose)($this->path, $this->buffer);
     }
 }
