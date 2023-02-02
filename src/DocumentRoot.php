@@ -7,13 +7,13 @@ use Amp\ByteStream\ReadableIterableStream;
 use Amp\ByteStream\ReadableStream;
 use Amp\File\File;
 use Amp\File\Filesystem;
+use Amp\Http\HttpStatus;
 use Amp\Http\Server\ErrorHandler;
 use Amp\Http\Server\HttpServer;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\RequestHandler;
 use Amp\Http\Server\Response;
 use Amp\Http\Server\StaticContent\Internal\Precondition;
-use Amp\Http\Status;
 use Amp\Pipeline\Pipeline;
 use cash\LRUCache;
 use Revolt\EventLoop;
@@ -264,7 +264,7 @@ final class DocumentRoot implements RequestHandler
                 return $this->fallback->handleRequest($request);
             }
 
-            return $this->errorHandler->handleError(Status::NOT_FOUND, request: $request);
+            return $this->errorHandler->handleError(HttpStatus::NOT_FOUND, request: $request);
         }
 
         switch ($request->getMethod()) {
@@ -273,13 +273,13 @@ final class DocumentRoot implements RequestHandler
                 break;
 
             case "OPTIONS":
-                return new Response(Status::NO_CONTENT, [
+                return new Response(HttpStatus::NO_CONTENT, [
                     "Allow" => "GET, HEAD, OPTIONS",
                     "Accept-Ranges" => "bytes",
                 ]);
 
             default:
-                $response = $this->errorHandler->handleError(Status::METHOD_NOT_ALLOWED, request: $request);
+                $response = $this->errorHandler->handleError(HttpStatus::METHOD_NOT_ALLOWED, request: $request);
                 $response->setHeader("Allow", "GET, HEAD, OPTIONS");
                 return $response;
         }
@@ -293,14 +293,14 @@ final class DocumentRoot implements RequestHandler
 
             case Precondition::NotModified:
                 $lastModifiedHttpDate = formatDateHeader($fileInfo->mtime);
-                $response = new Response(Status::NOT_MODIFIED, ["Last-Modified" => $lastModifiedHttpDate]);
+                $response = new Response(HttpStatus::NOT_MODIFIED, ["Last-Modified" => $lastModifiedHttpDate]);
                 if ($fileInfo->etag) {
                     $response->setHeader("Etag", $fileInfo->etag);
                 }
                 return $response;
 
             case Precondition::Failed:
-                return $this->errorHandler->handleError(Status::PRECONDITION_FAILED, request: $request);
+                return $this->errorHandler->handleError(HttpStatus::PRECONDITION_FAILED, request: $request);
 
             case Precondition::IfRangeFailed:
                 return $this->doNonRangeResponse($fileInfo);
@@ -315,7 +315,7 @@ final class DocumentRoot implements RequestHandler
         }
 
         // If we're still here this is the only remaining response we can send
-        $response = $this->errorHandler->handleError(Status::RANGE_NOT_SATISFIABLE, request: $request);
+        $response = $this->errorHandler->handleError(HttpStatus::RANGE_NOT_SATISFIABLE, request: $request);
         $response->setHeader("Content-Range", "*/{$fileInfo->size}");
         return $response;
     }
@@ -373,7 +373,7 @@ final class DocumentRoot implements RequestHandler
         if ($fileInfo->buffer !== null) {
             $headers["Content-Length"] = (string) $fileInfo->size;
 
-            return new Response(Status::OK, $headers, new ReadableBuffer($fileInfo->buffer));
+            return new Response(HttpStatus::OK, $headers, new ReadableBuffer($fileInfo->buffer));
         }
 
         // Don't use cached size if we don't have buffered file contents,
@@ -382,7 +382,7 @@ final class DocumentRoot implements RequestHandler
 
         $handle = $this->filesystem->openFile($fileInfo->path, "r");
 
-        $response = new Response(Status::OK, $headers, $handle);
+        $response = new Response(HttpStatus::OK, $headers, $handle);
         $response->onDispose($handle->close(...));
         return $response;
     }
@@ -509,7 +509,7 @@ final class DocumentRoot implements RequestHandler
             $stream = $this->sendMultiRange($handle, $fileInfo, $range);
         }
 
-        $response = new Response(Status::PARTIAL_CONTENT, $headers, $stream);
+        $response = new Response(HttpStatus::PARTIAL_CONTENT, $headers, $stream);
         $response->onDispose($handle->close(...));
         return $response;
     }

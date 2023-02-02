@@ -8,7 +8,7 @@ use Amp\Http\Server\HttpServer;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\SocketHttpServer;
 use Amp\Http\Server\StaticContent\DocumentRoot;
-use Amp\Http\Status;
+use Amp\Http\HttpStatus;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Socket\InternetAddress;
 use Psr\Http\Message\UriInterface as PsrUri;
@@ -162,7 +162,7 @@ class DocumentRootTest extends AsyncTestCase
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri($relativePath));
 
         $response = $this->root->handleRequest($request);
-        $this->assertSame(Status::NOT_FOUND, $response->getStatus());
+        $this->assertSame(HttpStatus::NOT_FOUND, $response->getStatus());
     }
 
     public function provideUnavailablePathsAboveRoot()
@@ -239,7 +239,7 @@ class DocumentRootTest extends AsyncTestCase
 
         $response = $this->root->handleRequest($request);
 
-        $this->assertSame(Status::PRECONDITION_FAILED, $response->getStatus());
+        $this->assertSame(HttpStatus::PRECONDITION_FAILED, $response->getStatus());
     }
 
     public function testPreconditionNotModified(): void
@@ -255,7 +255,7 @@ class DocumentRootTest extends AsyncTestCase
 
         $response = $this->root->handleRequest($request);
 
-        $this->assertSame(Status::NOT_MODIFIED, $response->getStatus());
+        $this->assertSame(HttpStatus::NOT_MODIFIED, $response->getStatus());
         $this->assertSame(\gmdate("D, d M Y H:i:s", \filemtime($diskPath))." GMT", $response->getHeader("last-modified"));
         $this->assertSame($etag, $response->getHeader("etag"));
     }
@@ -290,7 +290,7 @@ class DocumentRootTest extends AsyncTestCase
 
         $response = $this->root->handleRequest($request);
 
-        $this->assertSame(Status::RANGE_NOT_SATISFIABLE, $response->getStatus());
+        $this->assertSame(HttpStatus::RANGE_NOT_SATISFIABLE, $response->getStatus());
         $this->assertSame("*/4", $response->getHeader("content-range"));
     }
 
@@ -308,7 +308,7 @@ class DocumentRootTest extends AsyncTestCase
 
         $response = $this->root->handleRequest($request);
 
-        $this->assertSame(Status::PARTIAL_CONTENT, $response->getStatus());
+        $this->assertSame(HttpStatus::PARTIAL_CONTENT, $response->getStatus());
 
         $body = "";
         while (null !== $chunk = $response->getBody()->read()) {

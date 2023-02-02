@@ -12,7 +12,7 @@ use Psr\Log\NullLogger;
 
 class FuzzingTest extends AsyncTestCase
 {
-    private static Socket\SocketServer $socket;
+    private static Socket\ServerSocket $socket;
 
     private static string $documentRoot;
 
@@ -55,11 +55,7 @@ class FuzzingTest extends AsyncTestCase
 
         $response = ByteStream\buffer($client);
         $this->assertMatchesRegularExpression('(
-            HTTP/1\.0\ 400\ Bad\ Request:\ (?:
-                invalid\ request\ line|
-                invalid\ target|
-                authority-form\ only\ valid\ for\ CONNECT\ requests
-            )|
+            HTTP/1\.0\ 400\ Bad\ Request|
             HTTP/1.1\ 404\ Not\ Found|
             ^$
         )x', $response);
