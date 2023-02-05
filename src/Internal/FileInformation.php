@@ -2,34 +2,54 @@
 
 namespace Amp\Http\Server\StaticContent\Internal;
 
+use Amp\Http\Server\StaticContent\DocumentRoot;
+
 /**
- * Used in Amp\Http\Server\StaticContent\DocumentRoot.
+ * Used in {@see DocumentRoot}.
  */
 final class FileInformation
 {
-    public bool $exists = false;
-
-    public ?int $size = null;
-
-    public ?int $mtime = null;
-
-    public ?int $inode = null;
-
-    public ?string $buffer = null;
-
-    public ?string $etag = null;
-
-    /**
-     * @param \Closure(string $path, ?string $buffer): void $onDispose
-     */
-    public function __construct(
-        public string $path,
-        private readonly \Closure $onDispose,
-    ) {
+    public static function fromNonExistentFile(string $path): self
+    {
+        return new self($path, false, 0, 0, 0, '');
     }
 
-    public function __destruct()
+    public static function fromUnbufferedFile(string $path, array $stat, bool $useEtagINode): self
     {
-        ($this->onDispose)($this->path, $this->buffer);
+        return self::create($path, $stat, $useEtagINode);
+    }
+
+    public static function fromBufferedFile(
+        string $path,
+        array $stat,
+        bool $useEtagINode,
+        string $buffer,
+    ): self {
+        return self::create($path, $stat, $useEtagINode, $buffer);
+    }
+
+    private static function create(
+        string $path,
+        array $stat,
+        bool $useEtagINode,
+        ?string $buffer = null,
+    ): self {
+        $size = $buffer === null ? (int) $stat["size"] : \strlen($buffer);
+        $mtime = $stat["mtime"] ?? 0;
+        $inode = $stat["ino"] ?? 0;
+        $etag = \md5($path . $mtime . $size . ($useEtagINode ? $inode : ''));
+
+        return new self($path, true, $size, $mtime, $inode, $etag, $buffer);
+    }
+
+    private function __construct(
+        public readonly string $path,
+        public readonly bool $exists,
+        public readonly int $size,
+        public readonly int $mtime,
+        public readonly int $inode,
+        public readonly string $etag,
+        public readonly ?string $buffer = null,
+    ) {
     }
 }

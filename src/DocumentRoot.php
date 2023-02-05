@@ -38,7 +38,7 @@ final class DocumentRoot implements RequestHandler
     /** @var LocalCache<Internal\FileInformation> */
     private readonly LocalCache $cache;
 
-    private readonly \Closure $onDispose;
+    private readonly \WeakMap $buffered;
 
     private int $now;
 
@@ -53,7 +53,6 @@ final class DocumentRoot implements RequestHandler
     private float $aggressiveCacheMultiplier = 0.9;
     private int $cacheEntryTtl = 10;
     private int $cacheEntryLimit = 2048;
-    private int $bufferedFileCount = 0;
     private int $bufferedFileLimit = 50;
     private int $bufferedFileSizeLimit = 524288;
 
@@ -85,13 +84,7 @@ final class DocumentRoot implements RequestHandler
         $this->debug = \ini_get('zend.assertions') === '1';
 
         $this->cache = new LocalCache();
-
-        $bufferedFileCount = &$this->bufferedFileCount;
-        $this->onDispose = static function (string $path, ?string $buffer) use (&$bufferedFileCount): void {
-            if ($buffer !== null) {
-                --$bufferedFileCount;
-            }
-        };
+        $this->buffered = new \WeakMap();
 
         $httpServer->onStart($this->onStart(...));
         $httpServer->onStop($this->onStop(...));
@@ -150,13 +143,15 @@ final class DocumentRoot implements RequestHandler
         return $this->cache->get($reqPath);
     }
 
-    private function shouldBufferContent(Internal\FileInformation $fileInfo): bool
+    private function shouldBufferContent(array $stat): bool
     {
-        if ($fileInfo->size > $this->bufferedFileSizeLimit) {
+        $size = (int) ($stat["size"] ?? 0);
+
+        if (!$size || $size > $this->bufferedFileSizeLimit) {
             return false;
         }
 
-        if ($this->bufferedFileCount >= $this->bufferedFileLimit) {
+        if ($this->buffered->count() >= $this->bufferedFileLimit) {
             return false;
         }
 
@@ -186,34 +181,33 @@ final class DocumentRoot implements RequestHandler
 
     private function lookup(string $path): Internal\FileInformation
     {
-        $fileInfo = new Internal\FileInformation($path, $this->onDispose);
-
-        if (!$stat = $this->filesystem->getStatus($path)) {
-            return $fileInfo;
+        if (!($stat = $this->filesystem->getStatus($path))) {
+            return Internal\FileInformation::fromNonExistentFile($path);
         }
 
         if ($this->filesystem->isDirectory($path)) {
-            if ($indexPathArr = $this->coalesceIndexPath($path)) {
-                [$fileInfo->path, $stat] = $indexPathArr;
-            } else {
-                return $fileInfo;
+            if (!($indexPathArr = $this->coalesceIndexPath($path))) {
+                return Internal\FileInformation::fromNonExistentFile($path);
             }
+
+            [$path, $stat] = $indexPathArr;
         }
 
-        $fileInfo->exists = true;
-        $fileInfo->size = (int) $stat["size"];
-        $fileInfo->mtime = $stat["mtime"] ?? 0;
-        $fileInfo->inode = $stat["ino"] ?? 0;
-        $inode = $this->useEtagInode ? $fileInfo->inode : "";
-        $fileInfo->etag = \md5("{$fileInfo->path}{$fileInfo->mtime}{$fileInfo->size}{$inode}");
+        if ($this->shouldBufferContent($stat)) {
+            $fileInfo = Internal\FileInformation::fromBufferedFile(
+                $path,
+                $stat,
+                $this->useEtagInode,
+                $this->filesystem->read($path),
+            );
 
-        if ($this->shouldBufferContent($fileInfo)) {
-            $fileInfo->buffer = $this->filesystem->read($fileInfo->path);
-            $fileInfo->size = \strlen($fileInfo->buffer); // there's a slight chance for the size to change, be safe
-            $this->bufferedFileCount++;
+            /** @psalm-suppress InaccessibleProperty $this->buffered is a WeakMap */
+            $this->buffered[$fileInfo] = $fileInfo->size;
+
+            return $fileInfo;
         }
 
-        return $fileInfo;
+        return Internal\FileInformation::fromUnbufferedFile($path, $stat, $this->useEtagInode);
     }
 
     private function coalesceIndexPath(string $dirPath): ?array
@@ -283,7 +277,7 @@ final class DocumentRoot implements RequestHandler
             return $this->doNonRangeResponse($fileInfo);
         }
 
-        if ($range = $this->normalizeByteRanges($fileInfo->size, $rangeHeader)) {
+        if ($range = $this->normalizeByteRanges($fileInfo, $rangeHeader)) {
             return $this->doRangeResponse($range, $fileInfo);
         }
 
@@ -306,13 +300,13 @@ final class DocumentRoot implements RequestHandler
         }
 
         $ifModifiedSince = $request->getHeader("If-Modified-Since");
-        $ifModifiedSince = $ifModifiedSince ? @\strtotime($ifModifiedSince) : 0;
+        $ifModifiedSince = $ifModifiedSince ? \strtotime($ifModifiedSince) : 0;
         if ($ifModifiedSince && $mtime > $ifModifiedSince) {
             return Precondition::NotModified;
         }
 
         $ifUnmodifiedSince = $request->getHeader("If-Unmodified-Since");
-        $ifUnmodifiedSince = $ifUnmodifiedSince ? @\strtotime($ifUnmodifiedSince) : 0;
+        $ifUnmodifiedSince = $ifUnmodifiedSince ? \strtotime($ifUnmodifiedSince) : 0;
         if ($ifUnmodifiedSince && $mtime > $ifUnmodifiedSince) {
             return Precondition::Failed;
         }
@@ -330,7 +324,7 @@ final class DocumentRoot implements RequestHandler
          *
          * @link https://tools.ietf.org/html/rfc7233#section-3.2
          */
-        if ($httpDate = @\strtotime($ifRange)) {
+        if ($httpDate = \strtotime($ifRange)) {
             return ($httpDate > $mtime) ? Precondition::IfRangeOk : Precondition::IfRangeFailed;
         }
 
@@ -389,17 +383,11 @@ final class DocumentRoot implements RequestHandler
     private function selectMimeTypeFromPath(string $path): string
     {
         $ext = \pathinfo($path, PATHINFO_EXTENSION);
-        if (empty($ext)) {
+        if (!$ext) {
             $mimeType = $this->defaultMimeType;
         } else {
             $ext = \strtolower($ext);
-            if (isset($this->mimeTypes[$ext])) {
-                $mimeType = $this->mimeTypes[$ext];
-            } elseif (isset($this->mimeFileTypes[$ext])) {
-                $mimeType = $this->mimeFileTypes[$ext];
-            } else {
-                $mimeType = $this->defaultMimeType;
-            }
+            $mimeType = $this->mimeTypes[$ext] ?? $this->mimeFileTypes[$ext] ?? $this->defaultMimeType;
         }
 
         if (\stripos($mimeType, "text/") === 0 && \stripos($mimeType, "charset=") === false) {
@@ -412,14 +400,14 @@ final class DocumentRoot implements RequestHandler
     /**
      * @link https://tools.ietf.org/html/rfc7233#section-2.1
      *
-     * @param int    $size Total size of the file in bytes.
      * @param string $rawRanges Ranges as provided by the client.
      */
-    private function normalizeByteRanges(int $size, string $rawRanges): ?Internal\ByteRange
+    private function normalizeByteRanges(Internal\FileInformation $fileInfo, string $rawRanges): ?Internal\ByteRange
     {
         $rawRanges = \str_ireplace([' ', 'bytes='], '', $rawRanges);
 
         $ranges = [];
+        $size = $fileInfo->size;
 
         foreach (\explode(',', $rawRanges) as $range) {
             // If a range is missing the dash separator it's malformed; pull out here.
@@ -427,22 +415,21 @@ final class DocumentRoot implements RequestHandler
                 return null;
             }
 
-            list($startPos, $endPos) = \explode('-', \rtrim($range), 2);
-
-            if ($startPos === '' && $endPos === '') {
-                return null;
-            }
+            /** @psalm-suppress PossiblyUndefinedArrayOffset String contains a dash, checked above */
+            [$startPos, $endPos] = \explode('-', \rtrim($range), 2);
 
             if ($startPos === '' && $endPos !== '') {
                 // The -1 is necessary and not a hack because byte ranges are inclusive and start
                 // at 0. DO NOT REMOVE THE -1.
-                $startPos = $size - $endPos - 1;
+                $startPos = $size - (int) $endPos - 1;
                 $endPos = $size - 1;
             } elseif ($endPos === '' && $startPos !== '') {
-                $startPos = (int) $startPos;
+                $startPos = (int)$startPos;
                 // The -1 is necessary and not a hack because byte ranges are inclusive and start
                 // at 0. DO NOT REMOVE THE -1.
                 $endPos = $size - 1;
+            } elseif ($startPos === '' && $endPos === '') {
+                return null;
             } else {
                 $startPos = (int) $startPos;
                 $endPos = (int) $endPos;
@@ -456,13 +443,16 @@ final class DocumentRoot implements RequestHandler
             $ranges[] = [$startPos, $endPos];
         }
 
-        return new Internal\ByteRange($this->multipartBoundary, $ranges);
+        return new Internal\ByteRange(
+            $this->multipartBoundary,
+            $ranges,
+            $this->selectMimeTypeFromPath($fileInfo->path),
+        );
     }
 
     private function doRangeResponse(Internal\ByteRange $range, Internal\FileInformation $fileInfo): Response
     {
         $headers = $this->makeCommonHeaders($fileInfo);
-        $range->contentType = $mime = $this->selectMimeTypeFromPath($fileInfo->path);
 
         if (isset($range->ranges[1])) {
             $headers["Content-Type"] = "multipart/byteranges; boundary={$range->boundary}";
@@ -470,7 +460,7 @@ final class DocumentRoot implements RequestHandler
             [$startPos, $endPos] = $range->ranges[0];
             $headers["Content-Length"] = (string) ($endPos - $startPos + 1);
             $headers["Content-Range"] = "bytes {$startPos}-{$endPos}/{$fileInfo->size}";
-            $headers["Content-Type"] = $mime;
+            $headers["Content-Type"] = $range->contentType;
         }
 
         $handle = $this->filesystem->openFile($fileInfo->path, "r");
@@ -479,7 +469,7 @@ final class DocumentRoot implements RequestHandler
             [$startPos, $endPos] = $range->ranges[0];
             $stream = $this->sendSingleRange($handle, $startPos, $endPos);
         } else {
-            $stream = $this->sendMultiRange($handle, $fileInfo, $range);
+            $stream = $this->sendMultiRange($handle, $range->contentType, $fileInfo, $range);
         }
 
         $response = new Response(HttpStatus::PARTIAL_CONTENT, $headers, $stream);
@@ -493,17 +483,21 @@ final class DocumentRoot implements RequestHandler
         return new ReadableIterableStream($pipeline->getIterator());
     }
 
-    private function sendMultiRange($handle, Internal\FileInformation $fileInfo, Internal\ByteRange $range): ReadableStream
-    {
-        $pipeline = Pipeline::fromIterable(function () use ($handle, $range, $fileInfo) {
+    private function sendMultiRange(
+        File $handle,
+        string $mime,
+        Internal\FileInformation $fileInfo,
+        Internal\ByteRange $range
+    ): ReadableStream {
+        $pipeline = Pipeline::fromIterable(function () use ($handle, $mime, $range, $fileInfo) {
             foreach ($range->ranges as list($startPos, $endPos)) {
                 yield \sprintf(
                     "--%s\r\nContent-Type: %s\r\nContent-Range: bytes %d-%d/%d\r\n\r\n",
                     $range->boundary,
-                    $range->contentType,
+                    $mime,
                     $startPos,
                     $endPos,
-                    $fileInfo->size
+                    $fileInfo->size,
                 );
                 yield from $this->readRangeFromHandle($handle, $startPos, $endPos);
                 yield "\r\n";
@@ -520,9 +514,15 @@ final class DocumentRoot implements RequestHandler
         $handle->seek($startPos);
 
         while ($bytesRemaining) {
-            $chunk = $handle->read(length: \min($bytesRemaining, self::READ_CHUNK_SIZE));
-            $bytesRemaining -= \strlen($chunk);
+            $length = \min($bytesRemaining, self::READ_CHUNK_SIZE);
+            $chunk = $handle->read(length: $length);
+
+            $bytesRemaining -= \strlen((string) $chunk);
             yield $chunk;
+
+            if (\strlen((string) $chunk) < $length) {
+                return;
+            }
         }
     }
 
@@ -532,12 +532,12 @@ final class DocumentRoot implements RequestHandler
             if (!\is_string($index)) {
                 throw new \TypeError(\sprintf(
                     "Array of string index filenames required: %s provided",
-                    \gettype($index)
+                    \get_debug_type($index),
                 ));
             }
         }
 
-        $this->indexes = \array_filter($indexes);
+        $this->indexes = \array_values(\array_unique(\array_filter($indexes)));
     }
 
     public function setUseEtagInode(bool $useInode): void
@@ -553,15 +553,14 @@ final class DocumentRoot implements RequestHandler
     public function loadMimeFileTypes(string $mimeFile): void
     {
         $mimeFile = \str_replace('\\', '/', $mimeFile);
-        $mimeStr = @\file_get_contents($mimeFile);
-        if ($mimeStr === false) {
+        $contents = \file_get_contents($mimeFile);
+        if ($contents === false) {
             throw new \Exception(
                 "Failed loading mime associations from file {$mimeFile}"
             );
         }
 
-        /** @var array[] $matches */
-        if (!\preg_match_all('#\s*([a-z0-9]+)\s+([a-z0-9\-]+/[a-z0-9\-]+(?:\+[a-z0-9\-]+)?)#i', $mimeStr, $matches)) {
+        if (!\preg_match_all('#\s*([a-z0-9]+)\s+([a-z0-9\-]+/[a-z0-9\-]+(?:\+[a-z0-9\-]+)?)#i', $contents, $matches)) {
             throw new \Exception(
                 "No mime associations found in file: {$mimeFile}"
             );

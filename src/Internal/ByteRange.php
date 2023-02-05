@@ -7,11 +7,13 @@ namespace Amp\Http\Server\StaticContent\Internal;
  */
 final class ByteRange
 {
-    public ?string $contentType = null;
-
+    /**
+     * @param non-empty-list<array{int, int}> $ranges
+     */
     public function __construct(
         public readonly string $boundary,
         public readonly array $ranges,
+        public readonly string $contentType,
     ) {
     }
 }
