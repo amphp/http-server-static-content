@@ -3,17 +3,13 @@
 namespace Amp\Http\Server\StaticContent\Internal;
 
 /**
- * Used in Amp\Http\Server\StaticContent\DocumentRoot.
+ * Used for range array in {@see ByteRangeRequest}.
  */
-final class ByteRange
+class ByteRange
 {
-    /**
-     * @param non-empty-list<array{int, int}> $ranges
-     */
     public function __construct(
-        public readonly string $boundary,
-        public readonly array $ranges,
-        public readonly string $contentType,
+        public readonly int $start,
+        public readonly int $end,
     ) {
     }
 }

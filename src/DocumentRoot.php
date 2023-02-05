@@ -40,8 +40,6 @@ final class DocumentRoot implements RequestHandler
 
     private readonly \WeakMap $buffered;
 
-    private int $now;
-
     private array $mimeTypes = [];
     private array $mimeFileTypes = [];
     private array $indexes = ["index.html", "index.htm"];
@@ -78,7 +76,6 @@ final class DocumentRoot implements RequestHandler
         }
 
         $this->root = \rtrim($root, "/");
-        $this->now = \time();
         $this->filesystem = $filesystem ?? filesystem();
         $this->multipartBoundary = \strtr(\base64_encode(\random_bytes(16)), '+/', '-_');
         $this->debug = \ini_get('zend.assertions') === '1';
@@ -173,7 +170,7 @@ final class DocumentRoot implements RequestHandler
         // cache because the file entry path may differ if it's reflecting
         // a directory index file.
         if ($this->cache->count() < $this->cacheEntryLimit) {
-            $this->cache->set($reqPath, $fileInfo, $this->now + $this->cacheEntryTtl);
+            $this->cache->set($reqPath, $fileInfo, $this->cacheEntryTtl);
         }
 
         return $this->respondFromFileInfo($fileInfo, $request);
@@ -370,7 +367,7 @@ final class DocumentRoot implements RequestHandler
             $value = ", post-check={$postCheck}, pre-check={$preCheck}, max-age={$this->expiresPeriod}";
             $headers["Cache-Control"] .= $value;
         } elseif ($canCache) {
-            $expiry = $this->now + $this->expiresPeriod;
+            $expiry = \time() + $this->expiresPeriod;
             $headers["Cache-Control"] .= ", max-age={$this->expiresPeriod}";
             $headers["Expires"] = formatDateHeader($expiry);
         } else {
@@ -402,8 +399,10 @@ final class DocumentRoot implements RequestHandler
      *
      * @param string $rawRanges Ranges as provided by the client.
      */
-    private function normalizeByteRanges(Internal\FileInformation $fileInfo, string $rawRanges): ?Internal\ByteRange
-    {
+    private function normalizeByteRanges(
+        Internal\FileInformation $fileInfo,
+        string $rawRanges
+    ): ?Internal\ByteRangeRequest {
         $rawRanges = \str_ireplace([' ', 'bytes='], '', $rawRanges);
 
         $ranges = [];
@@ -440,36 +439,38 @@ final class DocumentRoot implements RequestHandler
                 return null;
             }
 
-            $ranges[] = [$startPos, $endPos];
+            $ranges[] = new Internal\ByteRange($startPos, $endPos);
         }
 
-        return new Internal\ByteRange(
+        return new Internal\ByteRangeRequest(
             $this->multipartBoundary,
             $ranges,
             $this->selectMimeTypeFromPath($fileInfo->path),
         );
     }
 
-    private function doRangeResponse(Internal\ByteRange $range, Internal\FileInformation $fileInfo): Response
+    private function doRangeResponse(Internal\ByteRangeRequest $request, Internal\FileInformation $fileInfo): Response
     {
         $headers = $this->makeCommonHeaders($fileInfo);
 
-        if (isset($range->ranges[1])) {
-            $headers["Content-Type"] = "multipart/byteranges; boundary={$range->boundary}";
+        $isMultiRange = \count($request->ranges) > 1;
+
+        if ($isMultiRange) {
+            $headers["Content-Type"] = "multipart/byteranges; boundary={$request->boundary}";
         } else {
-            [$startPos, $endPos] = $range->ranges[0];
-            $headers["Content-Length"] = (string) ($endPos - $startPos + 1);
-            $headers["Content-Range"] = "bytes {$startPos}-{$endPos}/{$fileInfo->size}";
-            $headers["Content-Type"] = $range->contentType;
+            $range = $request->ranges[0];
+            $headers["Content-Length"] = (string) ($range->end - $range->start + 1);
+            $headers["Content-Range"] = "bytes {$range->start}-{$range->end}/{$fileInfo->size}";
+            $headers["Content-Type"] = $request->contentType;
         }
 
         $handle = $this->filesystem->openFile($fileInfo->path, "r");
 
-        if (empty($range->ranges[1])) {
-            [$startPos, $endPos] = $range->ranges[0];
-            $stream = $this->sendSingleRange($handle, $startPos, $endPos);
+        if (!$isMultiRange) {
+            $range = $request->ranges[0];
+            $stream = $this->sendSingleRange($handle, $range->start, $range->end);
         } else {
-            $stream = $this->sendMultiRange($handle, $range->contentType, $fileInfo, $range);
+            $stream = $this->sendMultiRange($handle, $request->contentType, $fileInfo, $request);
         }
 
         $response = new Response(HttpStatus::PARTIAL_CONTENT, $headers, $stream);
@@ -487,22 +488,22 @@ final class DocumentRoot implements RequestHandler
         File $handle,
         string $mime,
         Internal\FileInformation $fileInfo,
-        Internal\ByteRange $range
+        Internal\ByteRangeRequest $request
     ): ReadableStream {
-        $pipeline = Pipeline::fromIterable(function () use ($handle, $mime, $range, $fileInfo) {
-            foreach ($range->ranges as list($startPos, $endPos)) {
+        $pipeline = Pipeline::fromIterable(function () use ($handle, $mime, $request, $fileInfo): \Generator {
+            foreach ($request->ranges as $range) {
                 yield \sprintf(
                     "--%s\r\nContent-Type: %s\r\nContent-Range: bytes %d-%d/%d\r\n\r\n",
-                    $range->boundary,
+                    $request->boundary,
                     $mime,
-                    $startPos,
-                    $endPos,
+                    $range->start,
+                    $range->end,
                     $fileInfo->size,
                 );
-                yield from $this->readRangeFromHandle($handle, $startPos, $endPos);
+                yield from $this->readRangeFromHandle($handle, $range->start, $range->end);
                 yield "\r\n";
             }
-            yield "--{$range->boundary}--";
+            yield "--{$request->boundary}--";
         });
 
         return new ReadableIterableStream($pipeline->getIterator());
