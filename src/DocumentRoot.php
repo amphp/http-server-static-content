@@ -423,7 +423,7 @@ final class DocumentRoot implements RequestHandler
                 $startPos = $size - (int) $endPos - 1;
                 $endPos = $size - 1;
             } elseif ($endPos === '' && $startPos !== '') {
-                $startPos = (int)$startPos;
+                $startPos = (int) $startPos;
                 // The -1 is necessary and not a hack because byte ranges are inclusive and start
                 // at 0. DO NOT REMOVE THE -1.
                 $endPos = $size - 1;
