@@ -18,6 +18,7 @@ use Monolog\Logger;
 use Monolog\Processor\PsrLogMessageProcessor;
 use function Amp\trapSignal;
 
+// This example requires amphp/http-server-router and amphp/log to be installed.
 // Run this script, then visit http://localhost:1337/ in your browser.
 
 $logHandler = new StreamHandler(ByteStream\getStdout());
