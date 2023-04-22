@@ -28,7 +28,7 @@ class FuzzingTest extends AsyncTestCase
 
         $errorHandler = new DefaultErrorHandler();
 
-        $server = new SocketHttpServer(new NullLogger);
+        $server = SocketHttpServer::createForDirectAccess(new NullLogger);
         $server->expose(new Socket\InternetAddress('127.0.0.1', 0));
         $server->start(new DocumentRoot($server, $errorHandler, self::$documentRoot), $errorHandler);
 

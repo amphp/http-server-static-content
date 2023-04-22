@@ -32,10 +32,10 @@
         "amphp/byte-stream": "^2",
         "amphp/cache": "^2",
         "amphp/file": "^3",
+        "amphp/http": "^2",
         "amphp/http-server": "^3",
-        "amphp/http": "^2-dev",
         "amphp/pipeline": "^1",
-        "revolt/event-loop": "^1 || ^0.2.4"
+        "revolt/event-loop": "^1"
     },
     "require-dev": {
         "amphp/http-server-router": "^2",
@@ -46,7 +46,7 @@
         "psalm/phar": "^5.6",
         "danielmiessler/sec-lists": "2022.4"
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "beta",
     "prefer-stable": true,
     "autoload": {
         "psr-4": {

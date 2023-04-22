@@ -29,7 +29,7 @@ class DocumentRootTest extends AsyncTestCase
     {
         parent::setUp();
         $errorHandler = new DefaultErrorHandler();
-        $this->server = new SocketHttpServer(new NullLogger());
+        $this->server = SocketHttpServer::createForDirectAccess(new NullLogger());
         $this->server->expose(new InternetAddress('127.0.0.1', 0));
         $this->root = new DocumentRoot($this->server, $errorHandler, self::fixturePath());
         $this->server->start($this->root, $errorHandler);

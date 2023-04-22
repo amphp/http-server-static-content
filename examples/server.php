@@ -3,6 +3,7 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use Amp\ByteStream;
+use Amp\Http\HttpStatus;
 use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\RequestHandler\ClosureRequestHandler;
@@ -10,7 +11,6 @@ use Amp\Http\Server\Response;
 use Amp\Http\Server\Router;
 use Amp\Http\Server\SocketHttpServer;
 use Amp\Http\Server\StaticContent\DocumentRoot;
-use Amp\Http\Status;
 use Amp\Log\ConsoleFormatter;
 use Amp\Log\StreamHandler;
 use Amp\Socket;
@@ -27,7 +27,7 @@ $logHandler->setFormatter(new ConsoleFormatter());
 $logger = new Logger('server');
 $logger->pushHandler($logHandler);
 
-$server = new SocketHttpServer($logger);
+$server = SocketHttpServer::createForDirectAccess($logger);
 $server->expose(new Socket\InternetAddress("0.0.0.0", 1337));
 $server->expose(new Socket\InternetAddress("[::]", 1337));
 
@@ -55,7 +55,7 @@ $router->addRoute('GET', '/', new ClosureRequestHandler(function (Request $reque
         </html>
         HTML;
 
-    return new Response(Status::OK, ['content-type' => 'text/html; charset=utf-8'], $html);
+    return new Response(HttpStatus::OK, ['content-type' => 'text/html; charset=utf-8'], $html);
 }));
 
 $server->start($router, $errorHandler);
