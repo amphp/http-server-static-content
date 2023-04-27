@@ -8,6 +8,8 @@ use Amp\ByteStream\ReadableStream;
 use Amp\Cache\LocalCache;
 use Amp\File\File;
 use Amp\File\Filesystem;
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Http\HttpStatus;
 use Amp\Http\Server\ErrorHandler;
 use Amp\Http\Server\HttpServer;
@@ -21,6 +23,9 @@ use function Amp\Http\formatDateHeader;
 
 final class DocumentRoot implements RequestHandler
 {
+    use ForbidCloning;
+    use ForbidSerialization;
+
     /** @var string Default mime file path. */
     public const DEFAULT_MIME_TYPE_FILE = __DIR__ . "/../resources/mime";
 

@@ -2,6 +2,8 @@
 
 namespace Amp\Http\Server\StaticContent;
 
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Http\Server\ErrorHandler;
 use Amp\Http\Server\HttpServer;
 use Amp\Http\Server\Request;
@@ -10,6 +12,9 @@ use Amp\Http\Server\Response;
 
 final class StaticResource implements RequestHandler
 {
+    use ForbidCloning;
+    use ForbidSerialization;
+
     private readonly DocumentRoot $documentRoot;
 
     private readonly string $path;
