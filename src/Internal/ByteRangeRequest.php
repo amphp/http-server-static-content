@@ -6,6 +6,8 @@ use Amp\Http\Server\StaticContent\DocumentRoot;
 
 /**
  * Used in {@see DocumentRoot}.
+ *
+ * @internal
  */
 final class ByteRangeRequest
 {

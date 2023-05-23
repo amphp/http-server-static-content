@@ -4,8 +4,10 @@ namespace Amp\Http\Server\StaticContent\Internal;
 
 /**
  * Used for range array in {@see ByteRangeRequest}.
+ *
+ * @internal
  */
-class ByteRange
+final class ByteRange
 {
     public function __construct(
         public readonly int $start,

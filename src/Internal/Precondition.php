@@ -2,6 +2,7 @@
 
 namespace Amp\Http\Server\StaticContent\Internal;
 
+/** @internal */
 enum Precondition
 {
     case NotModified;
