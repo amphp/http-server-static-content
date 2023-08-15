@@ -35,7 +35,7 @@ $errorHandler = new DefaultErrorHandler();
 
 $documentRoot = new DocumentRoot($server, $errorHandler, __DIR__ . '/public');
 
-$router = new Router($server, $errorHandler);
+$router = new Router($server, $logger, $errorHandler);
 $router->setFallback($documentRoot);
 $router->addRoute('GET', '/', new ClosureRequestHandler(function (Request $request): Response {
     // This can also be in a index.htm file, but we want a demo that uses the router.
