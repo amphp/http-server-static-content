@@ -46,8 +46,6 @@
         "psalm/phar": "^5.6",
         "danielmiessler/sec-lists": "2022.4"
     },
-    "minimum-stability": "beta",
-    "prefer-stable": true,
     "autoload": {
         "psr-4": {
             "Amp\\Http\\Server\\StaticContent\\": "src"
