@@ -19,6 +19,7 @@ use Amp\Http\Server\Response;
 use Amp\Http\Server\StaticContent\Internal\Precondition;
 use Amp\Pipeline\Pipeline;
 use function Amp\File\filesystem;
+use function Amp\File\read;
 use function Amp\Http\formatDateHeader;
 
 final class DocumentRoot implements RequestHandler
@@ -559,7 +560,7 @@ final class DocumentRoot implements RequestHandler
     public function loadMimeFileTypes(string $mimeFile): void
     {
         $mimeFile = \str_replace('\\', '/', $mimeFile);
-        $contents = \file_get_contents($mimeFile);
+        $contents = read($mimeFile);
         if ($contents === false) {
             throw new \Exception(
                 "Failed loading mime associations from file {$mimeFile}"
