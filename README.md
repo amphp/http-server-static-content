@@ -1,12 +1,22 @@
 # http-server-static-content
 
-This package provides a static content `RequestHandler` implementations for the [AMPHP HTTP server](https://github.com/amphp/http-server).
+AMPHP is a collection of event-driven libraries for PHP designed with fibers and concurrency in mind. This package provides an [HTTP server](https://amphp.org/http-server) plugin to serve static files like HTML, CSS, JavaScript, and images effortlessly. 
+
+## Installation
+
+This package can be installed as a [Composer](https://getcomposer.org/) dependency.
+
+```bash
+composer require amphp/http-server-static-content
+```
 
 ## Usage
 
-**`DocumentRoot`** and **`StaticResource`** implement `RequestHandler`.
+This package provides two `RequestHandler` implementations:
+ - **`DocumentRoot`**: Serves all files within a directory.
+ - **`StaticResource`**: Serves a single specific file.
 
-## Example
+The example below combines static file serving and [request routing](https://amphp.org/http-server-router) to demonstrate how they work well together:
 
 ```php
 <?php
@@ -27,3 +37,15 @@ $router->addRoute('GET', '/', new ClosureRequestHandler(function () {
 
 $server->start($router, new DefaultErrorHandler());
 ```
+
+## Contributing
+
+Please read [our rules](https://amphp.org/contributing) for details on our code of conduct, and the process for submitting pull requests to us.
+
+## Security
+
+If you discover any security related issues, please use the private security issue reporter instead of using the public issue tracker.
+
+## License
+
+The MIT License (MIT). Please see [LICENSE](./LICENSE) for more information.
