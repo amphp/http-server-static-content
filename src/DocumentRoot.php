@@ -19,7 +19,6 @@ use Amp\Http\Server\Response;
 use Amp\Http\Server\StaticContent\Internal\Precondition;
 use Amp\Pipeline\Pipeline;
 use function Amp\File\filesystem;
-use function Amp\File\read;
 use function Amp\Http\formatDateHeader;
 
 final class DocumentRoot implements RequestHandler
@@ -554,18 +553,13 @@ final class DocumentRoot implements RequestHandler
 
     public function setExpiresPeriod(int $seconds): void
     {
-        $this->expiresPeriod = ($seconds < 0) ? 0 : $seconds;
+        $this->expiresPeriod = \max(0, $seconds);
     }
 
     public function loadMimeFileTypes(string $mimeFile): void
     {
         $mimeFile = \str_replace('\\', '/', $mimeFile);
-        $contents = read($mimeFile);
-        if ($contents === false) {
-            throw new \Exception(
-                "Failed loading mime associations from file {$mimeFile}"
-            );
-        }
+        $contents = $this->filesystem->read($mimeFile);
 
         if (!\preg_match_all('#\s*([a-z0-9]+)\s+([a-z0-9\-]+/[a-z0-9\-]+(?:\+[a-z0-9\-]+)?)#i', $contents, $matches)) {
             throw new \Exception(
