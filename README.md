@@ -29,7 +29,8 @@ use Amp\Http\Server\StaticContent\DocumentRoot;
 use Amp\Http\Status;
 
 $router = new Amp\Http\Server\Router;
-$router->setFallback(new DocumentRoot(__DIR__ . '/public'));
+// $server is an instance of HttpServer and $errorHandler an instance of ErrorHandler
+$router->setFallback(new DocumentRoot($server, $errorHandler, __DIR__ . '/public'));
 $router->addRoute('GET', '/', new ClosureRequestHandler(function () {
     return new Response(Status::OK, ['content-type' => 'text/plain'], 'Hello, world!');
 }));
@@ -37,6 +38,8 @@ $router->addRoute('GET', '/', new ClosureRequestHandler(function () {
 
 $server->start($router, new DefaultErrorHandler());
 ```
+
+A full example is found in [`examples/server.php`](https://github.com/amphp/http-server-static-content/blob/2.x/examples/server.php). 
 
 ## Contributing
 
