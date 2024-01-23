@@ -2,6 +2,7 @@
 
 namespace Amp\Http\Server\StaticContent;
 
+use Amp\File\Filesystem;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
 use Amp\Http\Server\ErrorHandler;
@@ -23,13 +24,13 @@ final class StaticResource implements RequestHandler
      * @param string $path Path to static resource to serve. This resource will always be served, regardless of the
      * request URI.
      */
-    public function __construct(HttpServer $server, ErrorHandler $errorHandler, string $path)
+    public function __construct(HttpServer $server, ErrorHandler $errorHandler, string $path, ?Filesystem $filesystem = null)
     {
         $path = removeDotPathSegments($path);
         $root = \dirname($path);
         $this->path = '/' . \basename($path);
 
-        $this->documentRoot = new DocumentRoot($server, $errorHandler, $root);
+        $this->documentRoot = new DocumentRoot($server, $errorHandler, $root, $filesystem);
     }
 
     public function handleRequest(Request $request): Response
