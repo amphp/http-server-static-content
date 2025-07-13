@@ -114,7 +114,12 @@ final class DocumentRoot implements RequestHandler
      */
     public function handleRequest(Request $request): Response
     {
-        $path = removeDotPathSegments($request->getUri()->getPath());
+        $path = $request->getUri()->getPath();
+        if (stripos($path, "%2f") !== false || strpos($path, "%00") !== false) {
+            return $this->respondFromFileInfo(Internal\FileInformation::fromNonExistentFile($path), $request);
+        }
+
+        $path = removeDotPathSegments(\urldecode($path));
 
         return ($fileInfo = $this->fetchCachedStat($path, $request))
             ? $this->respondFromFileInfo($fileInfo, $request)
