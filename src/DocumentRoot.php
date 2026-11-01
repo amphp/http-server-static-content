@@ -306,9 +306,10 @@ final class DocumentRoot implements RequestHandler
             return Precondition::NotModified;
         }
 
+        // If-Modified-Since must be ignored when If-None-Match is present (RFC 9110 section 13.1.3)
         $ifModifiedSince = $request->getHeader("If-Modified-Since");
-        $ifModifiedSince = $ifModifiedSince ? \strtotime($ifModifiedSince) : 0;
-        if ($ifModifiedSince && $mtime > $ifModifiedSince) {
+        $ifModifiedSince = $ifModifiedSince && !$ifNoneMatch ? \strtotime($ifModifiedSince) : 0;
+        if ($ifModifiedSince && $mtime <= $ifModifiedSince) {
             return Precondition::NotModified;
         }
 

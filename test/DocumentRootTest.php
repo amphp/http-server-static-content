@@ -250,7 +250,7 @@ class DocumentRootTest extends AsyncTestCase
 
         $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
             "if-match" => $etag,
-            "if-modified-since" => "2.1.1970",
+            "if-modified-since" => \gmdate("D, d M Y H:i:s", \filemtime($diskPath))." GMT",
         ]);
 
         $response = $this->root->handleRequest($request);
@@ -258,6 +258,61 @@ class DocumentRootTest extends AsyncTestCase
         $this->assertSame(HttpStatus::NOT_MODIFIED, $response->getStatus());
         $this->assertSame(\gmdate("D, d M Y H:i:s", \filemtime($diskPath))." GMT", $response->getHeader("last-modified"));
         $this->assertSame($etag, $response->getHeader("etag"));
+    }
+
+    public function testIfModifiedSinceOlderThanMtimeReturnsFile(): void
+    {
+        $diskPath = \realpath(self::fixturePath())."/index.htm";
+
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
+            "if-modified-since" => \gmdate("D, d M Y H:i:s", \filemtime($diskPath) - 3600)." GMT",
+        ]);
+
+        $response = $this->root->handleRequest($request);
+
+        $this->assertSame(HttpStatus::OK, $response->getStatus());
+        $this->assertSame(\file_get_contents($diskPath), $response->getBody()->read());
+    }
+
+    public function testIfModifiedSinceEqualToMtimeReturnsNotModified(): void
+    {
+        $diskPath = \realpath(self::fixturePath())."/index.htm";
+
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
+            "if-modified-since" => \gmdate("D, d M Y H:i:s", \filemtime($diskPath))." GMT",
+        ]);
+
+        $response = $this->root->handleRequest($request);
+
+        $this->assertSame(HttpStatus::NOT_MODIFIED, $response->getStatus());
+    }
+
+    public function testIfModifiedSinceNewerThanMtimeReturnsNotModified(): void
+    {
+        $diskPath = \realpath(self::fixturePath())."/index.htm";
+
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
+            "if-modified-since" => \gmdate("D, d M Y H:i:s", \filemtime($diskPath) + 3600)." GMT",
+        ]);
+
+        $response = $this->root->handleRequest($request);
+
+        $this->assertSame(HttpStatus::NOT_MODIFIED, $response->getStatus());
+    }
+
+    public function testIfModifiedSinceIsIgnoredWhenIfNoneMatchDoesNotMatch(): void
+    {
+        $diskPath = \realpath(self::fixturePath())."/index.htm";
+
+        $request = new Request($this->createMock(Client::class), "GET", $this->createUri("/index.htm"), [
+            "if-none-match" => "\"not-the-etag\"",
+            "if-modified-since" => \gmdate("D, d M Y H:i:s", \filemtime($diskPath) + 3600)." GMT",
+        ]);
+
+        $response = $this->root->handleRequest($request);
+
+        $this->assertSame(HttpStatus::OK, $response->getStatus());
+        $this->assertSame(\file_get_contents($diskPath), $response->getBody()->read());
     }
 
     public function testPreconditionRangeFail(): void
